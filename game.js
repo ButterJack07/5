@@ -68,7 +68,7 @@ export class Game{
   get controlled(){return this.role==='hunter'?this.hunter:this.player;}
   get currentHunter(){return hunters.find(h=>h.id===this.hunterId)||hunters[0];}
   selectHunter(id){if(this.status!=='ready'||!hunters.some(h=>h.id===id))return false;this.hunterId=id;return true;}
-  configureMap(){this.player={x:36,y:55,z:0,angle:0};this.hunter={x:150,y:60,z:0,angle:0};this.windows=map.outdoorWindows.map(w=>({...w}));this.pallets=[{x:24,y:81},...map.outdoorPallets].map(p=>({...p,down:false,drop:0,broken:false}));this.generators=[{x:28,y:42,p:0},{x:121,y:96,p:0},{x:159,y:143,p:0}];this.exits=map.exits.map(e=>({...e,p:0}));this.exit=this.exits[0];}
+  configureMap(){this.player={x:40,y:70,z:0,angle:0};this.hunter={x:150,y:60,z:0,angle:0};this.windows=map.outdoorWindows.map(w=>({...w}));this.pallets=[{x:24,y:81},...map.outdoorPallets].map(p=>({...p,down:false,drop:0,broken:false}));this.generators=[{x:28,y:42,p:0},{x:121,y:96,p:0},{x:159,y:143,p:0}];this.exits=map.exits.map(e=>({...e,p:0}));this.exit=this.exits[0];}
   selectRole(role){if(this.status!=='ready'||!['survivor','hunter'].includes(role))return false;this.role=role;return true;}
   unstick(actor){this.collisionHeight=actor.z||0;if(!this.blocked(actor.x,actor.y)){this.collisionHeight=0;return;}this.resolveCollision(actor);this.collisionHeight=0;this.pathTimer=0;}
   breakPallet(){const p=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);if(!p)return false;if(!this.attack)this.beginAttack();return true;}

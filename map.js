@@ -59,7 +59,7 @@ export const barrels=[
 ];
 walls.push(...barrels.map(b=>({x:b.x,y:b.y,w:b.w,d:b.d,h:b.h,barrelCluster:true})));
 
-// More outdoor decorative stone fences and cemetery boundary wall segments
+// Red Church elements: Cemetery tombstones, crypt mausoleums, wooden benches, and perimeter fences
 export const outdoorStoneWalls=[
   {x:68,y:60,w:14,d:.8,h:2.4,brickWall:true},
   {x:128,y:58,w:16,d:.8,h:2.4,brickWall:true},
@@ -69,6 +69,27 @@ export const outdoorStoneWalls=[
   {x:122,y:148,w:16,d:.8,h:2.4,brickWall:true}
 ];
 walls.push(...outdoorStoneWalls);
+
+export const redChurchDecorations=[
+  // Graveyard tombstones (north-west cemetery area)
+  {x:48,y:45,w:1.2,d:.4,h:1.8,type:'tombstone'},
+  {x:52,y:45,w:1.2,d:.4,h:1.6,type:'tombstone'},
+  {x:56,y:45,w:1.2,d:.4,h:2.1,type:'crossTomb'},
+  {x:48,y:52,w:1.2,d:.4,h:1.9,type:'tombstone'},
+  {x:53,y:52,w:1.2,d:.4,h:1.5,type:'tombstone'},
+  {x:58,y:52,w:1.2,d:.4,h:2.2,type:'crossTomb'},
+  {x:46,y:60,w:1.2,d:.4,h:1.7,type:'tombstone'},
+  {x:52,y:60,w:1.2,d:.4,h:2.4,type:'crossTomb'},
+  // Crypt / Mausoleum stone vaults
+  {x:62,y:48,w:4.5,d:3.8,h:3.2,type:'crypt'},
+  {x:38,y:55,w:4.2,d:3.6,h:3.1,type:'crypt'},
+  // Outside wooden garden benches
+  {x:78,y:142,w:3.6,d:1.2,h:1.2,type:'bench'},
+  {x:122,y:142,w:3.6,d:1.2,h:1.2,type:'bench'},
+  {x:145,y:72,w:3.6,d:1.2,h:1.2,type:'bench'},
+  {x:145,y:82,w:3.6,d:1.2,h:1.2,type:'bench'}
+];
+walls.push(...redChurchDecorations.map(d=>({x:d.x,y:d.y,w:d.w,d:d.d,h:d.h,redChurchProp:true})));
 
 outdoorWindows.push({x:164,y:129},{x:142,y:31},{x:56,y:146});
 outdoorPallets.push({x:164,y:141},{x:142,y:45},{x:57,y:158});

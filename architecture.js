@@ -1,12 +1,36 @@
-import {walls,roofs,factory,cottages,churchFurniture,barrels,outdoorStoneWalls} from './map.js';
+import {walls,roofs,factory,cottages,churchFurniture,barrels,outdoorStoneWalls,redChurchDecorations} from './map.js';
 
 // Procedural masonry uses a shared texture and instanced trim to keep draw calls bounded.
 export function buildArchitecture(T,scene){
   function texture(){const c=document.createElement('canvas');c.width=c.height=256;const p=c.getContext('2d');p.fillStyle='#57504a';p.fillRect(0,0,256,256);for(let row=0;row<16;row++)for(let col=-1;col<9;col++){const n=(row*31+col*17+500)%24;p.fillStyle=`rgb(${100+n},${82+n},${66+n})`;p.fillRect(col*32+(row%2)*16+1,row*16+1,30,14);p.fillStyle='#ffffff09';p.fillRect(col*32+(row%2)*16+2,row*16+2,28,2);}const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=T.SRGBColorSpace;return t;}
-  const brick=new T.MeshStandardMaterial({map:texture(),roughness:.94}),stone=new T.MeshStandardMaterial({color:0xa49c85,roughness:.92}),iron=new T.MeshStandardMaterial({color:0x34433f,metalness:.65,roughness:.57}),wood=new T.MeshStandardMaterial({color:0x64513e,roughness:.88}),glass=new T.MeshStandardMaterial({color:0x273d40,metalness:.3,roughness:.25}),slate=new T.MeshStandardMaterial({color:0x384b4b,roughness:.8}),barrelWood=new T.MeshStandardMaterial({color:0x7a5a3a,roughness:.9});
+  const brick=new T.MeshStandardMaterial({map:texture(),roughness:.94}),stone=new T.MeshStandardMaterial({color:0xa49c85,roughness:.92}),iron=new T.MeshStandardMaterial({color:0x34433f,metalness:.65,roughness:.57}),wood=new T.MeshStandardMaterial({color:0x64513e,roughness:.88}),glass=new T.MeshStandardMaterial({color:0x273d40,metalness:.3,roughness:.25}),slate=new T.MeshStandardMaterial({color:0x384b4b,roughness:.8}),barrelWood=new T.MeshStandardMaterial({color:0x7a5a3a,roughness:.9}),tombMat=new T.MeshStandardMaterial({color:0x7a837c,roughness:.95}),carpetMat=new T.MeshStandardMaterial({color:0x801e2b,roughness:.85});
   const batches=new Map();
   function block(x,y,z,w,h,d,mat,rot=0){if(!batches.has(mat))batches.set(mat,[]);batches.get(mat).push({x,y,z,w,h,d,rot});}
   function mesh(geo,mat,x,y,z){const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;}
+
+  // Red Church central wedding aisle red carpet
+  mesh(new T.PlaneGeometry(5.4,38),carpetMat,100,.04,95).rotation.x=-Math.PI/2;
+
+  // Red Church cemetery props (Tombstones, crypts, stone crosses)
+  for(const d of redChurchDecorations){
+    if(d.type==='tombstone'){
+      block(d.x,d.h/2,d.y,d.w,d.h,d.d,tombMat);
+      block(d.x,d.h+.1,d.y,d.w-.2,.2,d.d+.05,tombMat);
+    }else if(d.type==='crossTomb'){
+      block(d.x,.4,d.y,d.w,.8,d.d+.2,tombMat);
+      block(d.x,d.h*.55,d.y,.35,d.h-.4,.3,stone);
+      block(d.x,d.h*.65,d.y,1.1,.3,.3,stone);
+    }else if(d.type==='crypt'){
+      block(d.x,d.h/2,d.y,d.w,d.h,d.d,stone);
+      block(d.x,d.h+.25,d.y,d.w+.4,.5,d.d+.4,tombMat);
+      // Crypt dark wrought-iron door
+      block(d.x,1.4,d.y+d.d/2+.05,1.8,2.6,.1,iron);
+    }else if(d.type==='bench'){
+      block(d.x,.4,d.y,d.w,.15,d.d,wood);
+      block(d.x,.85,d.y-d.d/2+.08,d.w,.75,.12,wood);
+      for(const bx of [-d.w/2+.3,d.w/2-.3])block(d.x+bx,.2,d.y,.15,.4,d.d-.1,iron);
+    }
+  }
 
   // Dedicated European stone walls and low perimeter barriers
   for(const sw of outdoorStoneWalls){

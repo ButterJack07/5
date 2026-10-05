@@ -83,7 +83,7 @@ function mesh(geo,color,x,y,z,parent=scene){const m=new T.Mesh(geo,new T.MeshSta
 function cube(x,y,z,w,h,d,color,parent){const m=mesh(new T.BoxGeometry(w,h,d),color,x,y,z,parent);if((x===96||x===136)&&color===0x81866b)m.visible=false;return m;}
 cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,.02,50,6,.03,100,0x62624a);
 cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
-walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
+walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall&&!w.redChurchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
 buildArchitecture(T,scene);
 buildOutdoorDetailing(T,scene);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
@@ -93,13 +93,21 @@ const redShape=new T.Shape();redShape.moveTo(0,0);for(let i=0;i<=24;i++){const a
 const smokeMesh=new T.Mesh(new T.SphereGeometry(1,12,8),new T.MeshBasicMaterial({color:0xb4cece,transparent:true,opacity:.24,depthWrite:false}));smokeMesh.name='skillSmoke';smokeMesh.visible=false;scene.add(smokeMesh);
 // Environment detailing: Gothic style weathered vegetation, low poly mossy boulders, and iron street lamps.
 function buildOutdoorDetailing(T,scene){
-  const trunkMat=new T.MeshStandardMaterial({color:0x4d3b2b,roughness:.95}),foliageDark=new T.MeshStandardMaterial({color:0x223c28,roughness:.88,flatShading:true}),foliageLight=new T.MeshStandardMaterial({color:0x395333,roughness:.9,flatShading:true}),rockMat=new T.MeshStandardMaterial({color:0x5e6560,roughness:.92,flatShading:true}),mossMat=new T.MeshStandardMaterial({color:0x415438,roughness:.95}),ironMat=new T.MeshStandardMaterial({color:0x262f2c,metalness:.7,roughness:.4});
+  const trunkMat=new T.MeshStandardMaterial({color:0x362b21,roughness:.95}),rockMat=new T.MeshStandardMaterial({color:0x5e6560,roughness:.92,flatShading:true}),mossMat=new T.MeshStandardMaterial({color:0x415438,roughness:.95}),ironMat=new T.MeshStandardMaterial({color:0x262f2c,metalness:.7,roughness:.4});
   for(const o of obstacles){
     if(o.type==='tree'){
+      // Tall gothic bare tree trunks with gnarled bare branches (no green cone foliage)
       const tree=new T.Group();tree.position.set(o.x,0,o.y);scene.add(tree);
-      const trunk=new T.Mesh(new T.CylinderGeometry(.38,.65,4.5,7),trunkMat);trunk.position.y=2.25;trunk.castShadow=true;tree.add(trunk);
-      for(const [r,h,y,rot,mat] of [[3.6,5.2,5.2,.2,foliageDark],[2.7,4.2,7.4,-.4,foliageLight],[1.7,3.2,9.3,.1,foliageDark]]){
-        const cone=new T.Mesh(new T.ConeGeometry(r,h,7),mat);cone.position.y=y;cone.rotation.y=rot;cone.castShadow=true;tree.add(cone);
+      const tallH=10.5+Math.random()*2.5;
+      const trunk=new T.Mesh(new T.CylinderGeometry(.28,.68,tallH,8),trunkMat);
+      trunk.position.y=tallH/2;trunk.castShadow=true;trunk.receiveShadow=true;tree.add(trunk);
+      // Gnarled side branches
+      for(let bi=0;bi<4;bi++){
+        const bAngle=bi*(Math.PI/2)+.3,bY=tallH*.62+bi*1.1,bLen=2.2+bi*.4;
+        const branch=new T.Mesh(new T.CylinderGeometry(.08,.16,bLen,6),trunkMat);
+        branch.position.set(Math.sin(bAngle)*bLen*.4,bY,Math.cos(bAngle)*bLen*.4);
+        branch.rotation.set(Math.sin(bAngle)*.7,bAngle,-Math.cos(bAngle)*.7);
+        branch.castShadow=true;tree.add(branch);
       }
     }else{
       const b=new T.Group();b.position.set(o.x,0,o.y);scene.add(b);
