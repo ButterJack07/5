@@ -18,7 +18,7 @@ class WSServer {
       if(!key){socket.destroy();return;}
       const accept=createHash('sha1').update(key+'258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
       socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: '+accept+'\r\n\r\n');
-      const client={socket,id:Math.random().toString(36).slice(2,9),room:null,role:'survivor',character:'mercenary'};
+      const client={socket,id:Math.random().toString(36).slice(2,9),nickname:'访客',room:null,role:'survivor',character:'mercenary',ready:false};
       this.clients.add(client);
       this.bindSocket(client);
     });
@@ -98,19 +98,52 @@ class WSServer {
     if(msg.type==='join_room'){
       const roomCode=String(msg.room||'8888').toUpperCase().slice(0,6);
       if(client.room&&this.rooms.has(client.room))this.rooms.get(client.room).players.delete(client);
-      if(!this.rooms.has(roomCode))this.rooms.set(roomCode,{players:new Set(),matchState:{started:false}});
+      if(!this.rooms.has(roomCode))this.rooms.set(roomCode,{players:new Set(),fillBots:true,matchStarted:false});
       const r=this.rooms.get(roomCode);
       client.room=roomCode;
+      client.nickname=String(msg.nickname||'访客').slice(0,10);
       client.role=msg.role||'survivor';
       client.character=msg.character||'mercenary';
       r.players.add(client);
-      // Inform joining player of room status and peer roster
-      const roster=Array.from(r.players).map(p=>({id:p.id,role:p.role,character:p.character}));
-      this.send(client,{type:'room_joined',room:roomCode,yourId:client.id,roster});
-      this.broadcast(roomCode,{type:'player_joined',player:{id:client.id,role:client.role,character:client.character}},client);
+      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
+      this.send(client,{type:'room_joined',room:roomCode,yourId:client.id,roster:getRoster(),fillBots:r.fillBots});
+      this.broadcast(roomCode,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+    }else if(msg.type==='update_profile'&&client.room){
+      const r=this.rooms.get(client.room);
+      if(!r)return;
+      if(msg.nickname)client.nickname=String(msg.nickname).slice(0,10);
+      if(msg.role)client.role=msg.role;
+      if(msg.character)client.character=msg.character;
+      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
+      this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+    }else if(msg.type==='toggle_bots'&&client.room){
+      const r=this.rooms.get(client.room);
+      if(!r)return;
+      r.fillBots=!!msg.fillBots;
+      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
+      this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+    }else if(msg.type==='start_match'&&client.room){
+      const r=this.rooms.get(client.room);
+      if(!r)return;
+      const players=Array.from(r.players);
+      const survivors=players.filter(p=>p.role==='survivor');
+      const hunters=players.filter(p=>p.role==='hunter');
+      // Rules: At least 2 players to start
+      if(players.length<2){
+        this.send(client,{type:'error',message:'需要至少 2 名玩家方可开始联机对局'});
+        return;
+      }
+      r.matchStarted=true;
+      this.broadcast(client.room,{
+        type:'match_start',
+        roster:players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),
+        fillBots:r.fillBots,
+        needsAiHunter:hunters.length===0,
+        needsAiSurvivors:r.fillBots?Math.max(0,4-survivors.length):0
+      });
     }else if(msg.type==='sync_pos'&&client.room){
       // Forward player coordinate/orientation sync to peers in same room
-      this.broadcast(client.room,{type:'peer_pos',id:client.id,x:msg.x,y:msg.y,z:msg.z,angle:msg.angle,role:client.role,character:client.character,health:msg.health,attack:msg.attack,anim:msg.anim},client);
+      this.broadcast(client.room,{type:'peer_pos',id:client.id,nickname:client.nickname,x:msg.x,y:msg.y,z:msg.z,angle:msg.angle,role:client.role,character:client.character,health:msg.health,attack:msg.attack,anim:msg.anim},client);
     }else if(msg.type==='game_event'&&client.room){
       // Forward game actions (cipher progress, pallet drop, hunter swing/hit)
       this.broadcast(client.room,{type:'peer_event',id:client.id,event:msg.event,payload:msg.payload},client);
