@@ -1,7 +1,9 @@
 import {Game, obstacles, walls, characters, distance, palletPose, SIZE, factory, upperDeck, groundHeight, ramps, upperFloors} from './game.js';
 import {inputKey, isGameKey} from './input.js';
 import {roofs} from './map.js';
+import {enableLayoutEditor} from './layout.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
+$('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
 const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第三人称'};
 function resize(){const r=$('#stage').getBoundingClientRect();width=r.width;height=r.height;const d=Math.min(devicePixelRatio||1,2);canvas.width=width*d;canvas.height=height*d;ctx.setTransform(d,0,0,d,0,0);if(three){three.renderer.setSize(width,height);three.camera.aspect=width/height;three.camera.updateProjectionMatrix();}}
@@ -16,7 +18,7 @@ window.addEventListener('keydown',e=>{if(inputKey(e)===' '&&!e.repeat&&game.cali
 $('#decodeButton').onclick=()=>{const target=game.generators.find(g=>g.p<100&&distance(g,game.player)<6);if(target)game.startDecode(target);};
 $('#calibrateButton').onpointerdown=e=>{e.preventDefault();game.calibrate();};
 $('#calibrateButton').onclick=e=>{if(e.detail===0)game.calibrate();};
-for(const id of ['interact','dash']){let el=$('#'+id);el.onpointerdown=e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
+for(const id of ['interact','dash']){let el=$('#'+id);el.onpointerdown=e=>{if(layoutEditing()||id==='interact'&&game.palletVaultLock>0)return;e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
 function characterMenu(){const root=$('#characterSelect');root.replaceChildren();characters.forEach(c=>{const b=document.createElement('button');b.textContent=c.name;b.classList.toggle('selected',c.id===game.characterId);b.onclick=()=>{if(game.status!=='ready')game.reset();game.selectCharacter(c.id);characterMenu();};root.appendChild(b);});$('#skillDescription').textContent=game.character.skill+' · 冷却 '+game.character.cooldown+' 秒 — '+game.character.description;}
 characterMenu();
 document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{if(game.status!=='ready')game.reset();game.selectRole(b.dataset.role);document.querySelectorAll('[data-role]').forEach(v=>v.classList.toggle('selected',v===b));$('#characterSelect').hidden=game.role==='hunter';characterMenu();if(game.role==='hunter')$('#skillDescription').textContent='监管者 · Q 攻击（3 秒后摇），按住 E 拆板 1.5 秒。击倒 AI 逃生者获胜。';});
@@ -68,6 +70,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
 let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  if(layoutEditing()){clearInput();$('#interact').disabled=false;$('#dash').disabled=false;return;}
   if(view==='third'&&three&&game.role==='hunter'){const a=game.hunter;three.camera.position.set(a.x+Math.sin(cameraAngle)*12,10,a.y+Math.cos(cameraAngle)*12);three.camera.lookAt(a.x,2,a.y);three.pallets.forEach((m,i)=>m.visible=!game.pallets[i].broken);three.renderer.render(three.scene,three.camera);}
   const near=game.nearby,close=near&&distance(near,game.player)<6,repairing=close&&['generator','exit'].includes(near.type),decode=game.decoding;
   $('#time').textContent=Math.floor(game.time/60).toString().padStart(2,'0')+':'+Math.floor(game.time%60).toString().padStart(2,'0');
