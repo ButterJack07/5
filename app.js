@@ -7,6 +7,79 @@ const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=can
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
 const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第三人称'};
+
+// LAN Multiplayer Networking State
+let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map();
+function initLANMultiplayer(){
+  const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),input=$('#lanRoom');
+  if(!statusEl||!btn)return;
+  btn.onclick=()=>{
+    const room=(input.value||'8888').trim().toUpperCase().slice(0,6);
+    if(lanSocket&&lanSocket.readyState===WebSocket.OPEN){
+      lanSocket.send(JSON.stringify({type:'join_room',room,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
+      return;
+    }
+    statusEl.textContent='⏳ 正在连接局域网...';
+    const proto=location.protocol==='https:'?'wss:':'ws:';
+    lanSocket=new WebSocket(`${proto}//${location.host}`);
+    lanSocket.onopen=()=>{
+      statusEl.textContent='✔ 已连入局域网';
+      lanSocket.send(JSON.stringify({type:'join_room',room,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
+    };
+    lanSocket.onmessage=e=>{
+      try{
+        const msg=JSON.parse(e.data);
+        if(msg.type==='room_joined'){
+          myLanId=msg.yourId;lanRoomCode=msg.room;
+          statusEl.textContent=`🟢 局域网房间: ${msg.room} (${msg.roster.length}人)`;
+          game.message=`已加入局域网对局 [${msg.room}]，等待或开始对局`;
+        }else if(msg.type==='player_joined'){
+          game.message=`有玩家加入对局 (${msg.player.role==='hunter'?'监管者':'求生者'})`;
+        }else if(msg.type==='player_left'){
+          if(lanPeers.has(msg.id)){
+            const peer=lanPeers.get(msg.id);
+            if(three&&peer.mesh)three.scene.remove(peer.mesh);
+            lanPeers.delete(msg.id);
+          }
+        }else if(msg.type==='peer_pos'){
+          updateLanPeer(msg);
+        }else if(msg.type==='peer_event'){
+          handleLanEvent(msg);
+        }
+      }catch(err){}
+    };
+    lanSocket.onerror=()=>statusEl.textContent='✖ 局域网连接失败(单机可用)';
+    lanSocket.onclose=()=>{statusEl.textContent='● 单人演练中';lanSocket=null;};
+  };
+}
+
+function updateLanPeer(data){
+  if(data.id===myLanId)return;
+  let peer=lanPeers.get(data.id);
+  if(!peer){
+    if(three){
+      const isHunter=data.role==='hunter';
+      const cObj=character(isHunter?0xb35b48:0x527a5e,isHunter);
+      peer={mesh:cObj.group,role:data.role,character:data.character};
+      lanPeers.set(data.id,peer);
+    }
+  }
+  if(peer&&peer.mesh){
+    peer.mesh.position.set(data.x,data.z||0,data.y);
+    peer.mesh.rotation.y=data.angle||0;
+  }
+}
+
+function handleLanEvent(msg){
+  if(msg.event==='pallet_down'){
+    const p=game.pallets[msg.payload.index];
+    if(p){p.down=true;p.drop=.4;}
+  }else if(msg.event==='gen_progress'){
+    const g=game.generators[msg.payload.index];
+    if(g)g.p=msg.payload.p;
+  }
+}
+initLANMultiplayer();
 function resize(){const r=$('#stage').getBoundingClientRect();width=r.width;height=r.height;const d=Math.min(devicePixelRatio||1,2);canvas.width=width*d;canvas.height=height*d;ctx.setTransform(d,0,0,d,0,0);if(three){three.renderer.setSize(width,height);three.camera.aspect=width/height;three.camera.updateProjectionMatrix();}}
 new ResizeObserver(resize).observe($('#stage'));
 function clearInput(){keys={};held={interact:false,sprint:false,dash:false};tapped={interact:false,dash:false};joy={x:0,y:0};$('#nub').style.transform='';game.lastDash=false;game.lastInteract=false;}
@@ -191,7 +264,23 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
         group.userData.beaconLight.intensity=done?3.5:5.5;
       }
     });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
-let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
+let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;broadcastLocalPosition();}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
+
+let lastSyncTime=0;
+function broadcastLocalPosition(){
+  if(!lanSocket||lanSocket.readyState!==WebSocket.OPEN||!lanRoomCode)return;
+  const now=performance.now();
+  if(now-lastSyncTime<65)return; // ~15Hz bandwidth-conserving smooth sync
+  lastSyncTime=now;
+  const me=game.controlled;
+  lanSocket.send(JSON.stringify({
+    type:'sync_pos',
+    x:me.x,y:me.y,z:me.z||0,
+    angle:me.angle||0,
+    health:game.health,
+    attack:game.attack?game.attack.phase:null
+  }));
+}
 let previousMessage='',messageUntil=0;
 function updateHUD(){
   if(layoutEditing()){clearInput();$('#interact').disabled=false;$('#dash').disabled=false;return;}
