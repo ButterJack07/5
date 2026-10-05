@@ -2,6 +2,7 @@ import {Game, obstacles, walls, characters, distance, palletPose, SIZE, factory,
 import {inputKey, isGameKey} from './input.js';
 import {roofs} from './map.js';
 import {enableLayoutEditor} from './layout.js';
+import {buildArchitecture} from './architecture.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
@@ -54,16 +55,39 @@ function mesh(geo,color,x,y,z,parent=scene){const m=new T.Mesh(geo,new T.MeshSta
 function cube(x,y,z,w,h,d,color,parent){const m=mesh(new T.BoxGeometry(w,h,d),color,x,y,z,parent);if((x===96||x===136)&&color===0x81866b)m.visible=false;return m;}
 cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,.02,50,6,.03,100,0x62624a);
 cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
-walls.filter(w=>!w.factory&&!w.rail).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
-for(const w of walls.filter(w=>w.factory||w.rail))cube(w.x,(w.base||0)+(w.h||3.8)/2,w.y,w.w,w.h||3.8,w.d,w.rail?0x768782:0x858673);
+walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
+buildArchitecture(T,scene);
+buildOutdoorDetailing(T,scene);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
-roofs.forEach(r=>{const m=cube(r.x,r.z,r.y,r.w,.7,r.d,0x58675f);m.name='buildingRoof';m.userData.roof=r;});
 game.exits.forEach(e=>{cube(e.x,3.5,e.y-6,1.5,7,2,0x7a826d);cube(e.x,3.5,e.y+6,1.5,7,2,0x7a826d);const m=cube(e.x,2.5,e.y,1,5,10,0x646e50);m.name='escapeGate';m.userData.exit=e;});
-for(const r of ramps){if(r.kind==='stairs'){for(let i=0;i<24;i++){const depth=r.d/24,h=(24-i)/24*4;cube(r.x,h/2,r.top+(i+.5)*depth,r.w,h,depth,0x8d8770);}}else{const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute([r.x-r.w/2,4,r.top,r.x+r.w/2,4,r.top,r.x-r.w/2,0,r.bottom,r.x+r.w/2,4,r.top,r.x+r.w/2,0,r.bottom,r.x-r.w/2,0,r.bottom],3));geo.computeVertexNormals();scene.add(new T.Mesh(geo,new T.MeshStandardMaterial({color:0x7b7864,side:T.DoubleSide})));}}
+for(const r of ramps){for(let i=0;i<24;i++){const depth=r.d/24,h=(24-i)/24*4;cube(r.x,h/2,r.top+(i+.5)*depth,r.w,h,depth,0x8d8770);}}
 const redShape=new T.Shape();redShape.moveTo(0,0);for(let i=0;i<=24;i++){const a=-.55+i/24*1.1;redShape.lineTo(Math.sin(a)*9,-Math.cos(a)*9);}redShape.lineTo(0,0);const redMesh=new T.Mesh(new T.ShapeGeometry(redShape),new T.MeshBasicMaterial({color:0xf02a20,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));const redGroup=new T.Group();redGroup.name='hunterRedLight';redMesh.rotation.x=-Math.PI/2;redGroup.add(redMesh);scene.add(redGroup);
 const smokeMesh=new T.Mesh(new T.SphereGeometry(1,12,8),new T.MeshBasicMaterial({color:0xb4cece,transparent:true,opacity:.24,depthWrite:false}));smokeMesh.name='skillSmoke';smokeMesh.visible=false;scene.add(smokeMesh);
-for(const o of obstacles){if(o.type==='tree'){mesh(new T.CylinderGeometry(.4,.7,5,6),0x75614a,o.x,2.5,o.y);mesh(new T.ConeGeometry(3.8,7,7),0x294e38,o.x,6,o.y);mesh(new T.ConeGeometry(2.8,5,7),0x48613d,o.x,9,o.y);}else{cube(o.x,o.h/2,o.y,o.w,o.h,o.d,0x777b64);}}
-for(let i=0;i<160;i++){const x=(i*31.13)%96+2,z=(i*17.43)%96+2;mesh(new T.ConeGeometry(.25,.7,3),0x61714b,x,.3,z);}
+// Environment detailing: Gothic style weathered vegetation, low poly mossy boulders, and iron street lamps.
+function buildOutdoorDetailing(T,scene){
+  const trunkMat=new T.MeshStandardMaterial({color:0x4d3b2b,roughness:.95}),foliageDark=new T.MeshStandardMaterial({color:0x223c28,roughness:.88,flatShading:true}),foliageLight=new T.MeshStandardMaterial({color:0x395333,roughness:.9,flatShading:true}),rockMat=new T.MeshStandardMaterial({color:0x5e6560,roughness:.92,flatShading:true}),mossMat=new T.MeshStandardMaterial({color:0x415438,roughness:.95}),ironMat=new T.MeshStandardMaterial({color:0x262f2c,metalness:.7,roughness:.4});
+  for(const o of obstacles){
+    if(o.type==='tree'){
+      const tree=new T.Group();tree.position.set(o.x,0,o.y);scene.add(tree);
+      const trunk=new T.Mesh(new T.CylinderGeometry(.38,.65,4.5,7),trunkMat);trunk.position.y=2.25;trunk.castShadow=true;tree.add(trunk);
+      for(const [r,h,y,rot,mat] of [[3.6,5.2,5.2,.2,foliageDark],[2.7,4.2,7.4,-.4,foliageLight],[1.7,3.2,9.3,.1,foliageDark]]){
+        const cone=new T.Mesh(new T.ConeGeometry(r,h,7),mat);cone.position.y=y;cone.rotation.y=rot;cone.castShadow=true;tree.add(cone);
+      }
+    }else{
+      const b=new T.Group();b.position.set(o.x,0,o.y);scene.add(b);
+      const base=new T.Mesh(new T.DodecahedronGeometry(o.w*.48,1),rockMat);base.scale.set(1.45,o.h/(o.w*.48||1)*.55,1);base.position.y=o.h*.5;base.castShadow=true;base.receiveShadow=true;b.add(base);
+      const moss=new T.Mesh(new T.DodecahedronGeometry(o.w*.32,0),mossMat);moss.scale.set(1.2,.35,1);moss.position.set(0,o.h*.82,0);b.add(moss);
+    }
+  }
+  // Iron lamp posts scattered across the grounds for vintage gothic cemetery vibe.
+  for(const [lx,lz] of [[52,48],[148,52],[45,115],[152,142],[98,42],[100,154]]){
+    const pole=new T.Mesh(new T.CylinderGeometry(.12,.18,4.2,6),ironMat);pole.position.set(lx,2.1,lz);scene.add(pole);
+    const arm=new T.Mesh(new T.BoxGeometry(1,.12,.12),ironMat);arm.position.set(lx+.35,4.1,lz);scene.add(arm);
+    const lantern=new T.Mesh(new T.OctahedronGeometry(.35,0),new T.MeshStandardMaterial({color:0xffd99b,emissive:0xffa834,emissiveIntensity:1.8}));lantern.position.set(lx+.7,3.8,lz);scene.add(lantern);
+    const light=new T.PointLight(0xffb85c,4.5,18,2);light.position.set(lx+.7,3.7,lz);scene.add(light);
+  }
+}
+for(let i=0;i<160;i++){const x=(i*31.13)%SIZE+2,z=(i*17.43)%SIZE+2;if(roofs.some(r=>Math.abs(x-r.x)<r.w/2+2&&Math.abs(z-r.y)<r.d/2+2))continue;mesh(new T.ConeGeometry(.25,.7,3),0x61714b,x,.3,z);}
 const generators=game.generators.map(g=>{let group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);cube(0,1,0,3,2,2.4,0x8d7250,group);cube(0,2.4,0,1.7,.8,1.6,0x343f3b,group);const lamp=cube(0,2.6,-.85,1,.25,.1,0xecb471,group);return lamp;});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
 function character(color,hunter){const group=new T.Group();scene.add(group);cube(0,1.9,0,1.1,1.3,.7,color,group);mesh(new T.IcosahedronGeometry(.48,1),0xe5c6a0,0,3,0,group);const legs=[cube(-.3,.65,0,.38,1.2,.4,0x263534,group),cube(.3,.65,0,.38,1.2,.4,0x263534,group)];cube(-.8,1.9,0,.3,1,.35,color,group);cube(.8,1.9,0,.3,1,.35,color,group);if(hunter){cube(1.1,1.5,0,.15,2.5,.15,0x7e624a,group);cube(1.4,2.6,0,.7,.6,.15,0xadb3a2,group);}return {group,legs};}const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
 function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}player.group.children[0].material.color.setHex(game.character.color);generators.forEach((m,i)=>{m.material.color.set(game.generators[i].p>=100?0xd6ed91:0xecb471);m.material.emissive.copy(m.material.color);m.material.emissiveIntensity=.5;});pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
