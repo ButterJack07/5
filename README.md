@@ -20,11 +20,13 @@ The 3D renderer loads Three.js from jsDelivr on first use; it requires internet 
 
 ## Controls
 
-- WASD / arrows: move; Shift: sprint; hold E: interact.
+- WASD / arrows: move; Shift: sprint; hold E: interact; Q: directional dash (5-second cooldown).
 - Remain stationary to repair generators and open the exit.
 - Near a standing pallet, E drops it and stuns a nearby hunter.
+- Near a window, E vaults across it. When injured, hold E while stationary to bandage yourself.
+- Dash follows the held movement direction (or your last facing direction while stationary), stops at obstacles, and does not consume cooldown if blocked immediately.
 - In 3D, drag the scene to rotate the camera. Movement is camera-relative.
-- Mobile: virtual joystick, hold sprint / interact buttons.
+- Mobile: virtual joystick, hold sprint / interact buttons, tap the dash skill button.
 - Switch views at any point without resetting the match.
 
 Repair three generators, open the east gate, then walk through it. Two hits or a four-minute timeout ends the match. The hunter patrols, detects unobstructed nearby players, remembers sightings briefly, and uses grid pathfinding around obstacles.

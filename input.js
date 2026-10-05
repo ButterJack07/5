@@ -1,5 +1,5 @@
 const codes = {
-  KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', KeyE: 'e',
+  KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd', KeyE: 'e', KeyQ: 'q',
   ShiftLeft: 'shift', ShiftRight: 'shift',
   ArrowUp: 'arrowup', ArrowDown: 'arrowdown',
   ArrowLeft: 'arrowleft', ArrowRight: 'arrowright', Space: ' '

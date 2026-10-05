@@ -3,12 +3,14 @@
 <body><main id="stage" tabindex="-1"><canvas id="flat"></canvas><div id="webgl"></div>
 <div class="hud"><span id="count">电力 0 / 3</span><span id="time">04:00</span></div>
 <button id="settingsButton" aria-label="打开游戏设置" aria-expanded="false">☰</button>
-<section id="settings" hidden><h2>演练设置</h2><nav aria-label="游戏视角"><button data-view="iso" class="selected">2.5D 斜视</button><button data-view="third">3D 第三人称</button></nav><p id="cameraHint">可随时切换视角，保留对局</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · Shift 冲刺 · 按住 E 交互<br>手机使用摇杆和右侧按钮</small></section>
+<section id="settings" hidden><h2>演练设置</h2><nav aria-label="游戏视角"><button data-view="iso" class="selected">2.5D 斜视</button><button data-view="third">3D 第三人称</button></nav><p id="cameraHint">可随时切换视角，保留对局</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · Shift 冲刺 · 按住 E 交互<br>Q 疾步突进（5 秒冷却）· 受伤后 E 包扎<br>靠近窗口按 E 翻越 · 手机使用画面按钮</small></section>
 <div id="message" role="status"></div>
 <section class="survivor"><div class="portrait">◇</div><div><h3>林间信使 <span id="health">健康</span></h3><label>体力 <b id="energy">100%</b></label><div class="track"><i id="energybar"></i></div></div></section>
 <div class="threat"><span id="threat">追猎者巡逻中</span></div>
 <div id="repairPanel" hidden><label id="repairLabel">修理进度 <b id="repair">—</b></label><div class="track amber"><i id="repairbar"></i></div></div>
-<div class="bottom"><span id="prompt">靠近设备，按住 E 交互</span><span id="mode" hidden>2D / 全局视野</span></div>
-<div id="overlay"><p class="eyebrow">雾港</p><h2>沉船林地</h2><p>修理三台发电机，开启闸门逃脱。<br>利用障碍物与木板摆脱追猎者。</p><button id="start">开始演练</button><small>WASD 移动 · Shift 冲刺 · 按住 E 交互<br>右上角切换视角</small></div>
+<div class="bottom"><span id="prompt">靠近设备，按住 E 交互</span><span id="mode" hidden>2.5D / 等距跟随</span></div>
+<div class="skill"><button id="dash" aria-label="疾步突进，冷却五秒"><span id="dashIcon">➜</span><small id="dashTime">Q · 疾步</small></button></div>
+<div id="overlay"><p class="eyebrow">雾港</p><h2>沉船林地</h2><p>修理三台发电机，开启闸门逃脱。<br>放板、翻窗、包扎与疾步突进，摆脱追猎者。</p><button id="start">开始演练</button><small>WASD 移动 · Shift 冲刺 · 按住 E 交互 · Q 突进<br>右上角切换视角</small></div>
+<div id="rotateHint"><div class="rotateIcon" aria-hidden="true">↻</div><h2>请横屏游玩</h2><p>旋转手机，获得更宽阔的追逃视野</p><button id="portraitContinue">继续竖屏游玩</button></div>
 <div class="touch"><div id="stick"><i id="nub"></i></div><div class="touch-actions"><button id="sprint">冲刺</button><button id="interact">交互</button></div></div>
 </main><script type="module" src="app.js"></script></body></html>
