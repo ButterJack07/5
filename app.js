@@ -1,17 +1,21 @@
 import {Game, obstacles, distance} from './game.js';
 import {inputKey, isGameKey} from './input.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
-let view='iso',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,three=null,loading=false;
+let view='iso',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,three=null,loading=false;
 const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第三人称'};
 function resize(){const r=$('#stage').getBoundingClientRect();width=r.width;height=r.height;const d=Math.min(devicePixelRatio||1,2);canvas.width=width*d;canvas.height=height*d;ctx.setTransform(d,0,0,d,0,0);if(three){three.renderer.setSize(width,height);three.camera.aspect=width/height;three.camera.updateProjectionMatrix();}}
 new ResizeObserver(resize).observe($('#stage'));
-function clearInput(){keys={};held={interact:false,sprint:false,dash:false};joy={x:0,y:0};$('#nub').style.transform='';game.lastDash=false;game.lastInteract=false;}
+function clearInput(){keys={};held={interact:false,sprint:false,dash:false};tapped={interact:false,dash:false};joy={x:0,y:0};$('#nub').style.transform='';game.lastDash=false;game.lastInteract=false;}
 window.addEventListener('blur',clearInput);document.addEventListener('visibilitychange',()=>{clearInput();last=0;});
 $('#portraitContinue').onclick=()=>{$('#rotateHint').classList.add('dismissed');last=0;$('#stage').focus({preventScroll:true});};
 matchMedia('(orientation:landscape)').addEventListener('change',()=>{clearInput();last=0;$('#rotateHint').classList.remove('dismissed');});
 window.addEventListener('keydown',e=>{const key=inputKey(e);if(isGameKey(key)){e.preventDefault();keys[key]=true;}});
 window.addEventListener('keyup',e=>{const key=inputKey(e);if(isGameKey(key)){e.preventDefault();keys[key]=false;}});
-for(const id of ['interact','sprint','dash']){let el=$('#'+id);el.onpointerdown=e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
+window.addEventListener('keydown',e=>{if(inputKey(e)===' '&&!e.repeat&&game.calibration&&$('#settings').hidden){e.preventDefault();game.calibrate();}});
+$('#decodeButton').onclick=()=>{const target=game.generators.find(g=>g.p<100&&distance(g,game.player)<6);if(target)game.startDecode(target);};
+$('#calibrateButton').onpointerdown=e=>{e.preventDefault();game.calibrate();};
+$('#calibrateButton').onclick=e=>{if(e.detail===0)game.calibrate();};
+for(const id of ['interact','sprint','dash']){let el=$('#'+id);el.onpointerdown=e=>{e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;if(id!=='sprint')tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
 let pointer=null;const stick=$('#stick');stick.onpointerdown=e=>{pointer=e.pointerId;stick.setPointerCapture(pointer);stickMove(e);};stick.onpointermove=e=>{if(pointer===e.pointerId)stickMove(e);};stick.onpointerup=stick.onpointercancel=()=>{pointer=null;joy={x:0,y:0};$('#nub').style.transform='';};
 function stickMove(e){let r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y);if(l>32){x*=32/l;y*=32/l;}joy={x:x/32,y:y/32};$('#nub').style.transform=`translate(${x}px,${y}px)`;}
 let drag=null;$('#stage').addEventListener('pointerdown',e=>{if(view==='third'&&(e.target===three?.renderer.domElement)){drag={id:e.pointerId,x:e.clientX};e.target.setPointerCapture(e.pointerId);}});$('#stage').addEventListener('pointermove',e=>{if(drag?.id===e.pointerId){cameraAngle-=(e.clientX-drag.x)*.007;drag.x=e.clientX;}});$('#stage').addEventListener('pointerup',()=>drag=null);$('#stage').addEventListener('pointercancel',()=>drag=null);
@@ -41,22 +45,31 @@ for(let i=0;i<160;i++){const x=(i*31.13)%96+2,z=(i*17.43)%96+2;mesh(new T.ConeGe
 const generators=game.generators.map(g=>{let group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);cube(0,1,0,3,2,2.4,0x8d7250,group);cube(0,2.4,0,1.7,.8,1.6,0x343f3b,group);const lamp=cube(0,2.6,-.85,1,.25,.1,0xecb471,group);return lamp;});const pallets=game.pallets.map(p=>{let m=cube(p.x,1.5,p.y,6,3,.7,0xb59b69);return m;});game.windows.forEach(w=>{cube(w.x-2.5,1.2,w.y,.7,2.4,1,0x909479);cube(w.x+2.5,1.2,w.y,.7,2.4,1,0x909479);cube(w.x,1.2,w.y,4.5,.35,.7,0xc2b181);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
 function character(color,hunter){const group=new T.Group();scene.add(group);cube(0,1.9,0,1.1,1.3,.7,color,group);mesh(new T.IcosahedronGeometry(.48,1),0xe5c6a0,0,3,0,group);const legs=[cube(-.3,.65,0,.38,1.2,.4,0x263534,group),cube(.3,.65,0,.38,1.2,.4,0x263534,group)];cube(-.8,1.9,0,.3,1,.35,color,group);cube(.8,1.9,0,.3,1,.35,color,group);if(hunter){cube(1.1,1.5,0,.15,2.5,.15,0x7e624a,group);cube(1.4,2.6,0,.7,.6,.15,0xadb3a2,group);}return {group,legs};}const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
 function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){visual.group.position.set(actor.x,0,actor.y);visual.group.rotation.y=actor.angle;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.5:0);}player.group.scale.setScalar(game.dashFlash>0?1.15:1);generators.forEach((m,i)=>{m.material.color.set(game.generators[i].p>=100?0xd6ed91:0xecb471);m.material.emissive.copy(m.material.color);m.material.emissiveIntensity=.5;});pallets.forEach((m,i)=>{m.rotation.x=game.pallets[i].down?Math.PI/2:0;m.position.y=game.pallets[i].down?.4:1.5;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
-let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact,sprint:keys.shift||held.sprint,dash:keys.q||held.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse) and (orientation:portrait)').matches||$('#rotateHint').classList.contains('dismissed')))game.update(dt,input);if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
+let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,sprint:keys.shift||held.sprint,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse) and (orientation:portrait)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
 let previousMessage='',messageUntil=0;
 function updateHUD(){
-  const near=game.nearby,close=near&&distance(near,game.player)<6,repairing=close&&['generator','exit','heal'].includes(near.type);
+  const near=game.nearby,close=near&&distance(near,game.player)<6,repairing=close&&['generator','exit','heal'].includes(near.type),decode=game.decoding;
   $('#time').textContent=Math.floor(game.time/60).toString().padStart(2,'0')+':'+Math.floor(game.time%60).toString().padStart(2,'0');
   $('#count').textContent=game.powered===3?'电力已恢复 · 开启逃生闸门':'还需启动 '+(3-game.powered)+' 台发电机';
   $('#energy').textContent=Math.round(game.stamina)+'%';$('#energybar').style.width=game.stamina+'%';
   $('#health').textContent=game.health===2?'健康':game.health===1?'受伤':'倒地';$('#health').style.color=game.health===2?'#d6ed91':'#e78265';
   if(previousMessage!==game.message){previousMessage=game.message;messageUntil=time+3.5;$('#message').textContent=game.message;}
   $('#message').classList.toggle('visible',time<messageUntil&&game.status==='playing');
-  $('#repairPanel').hidden=!repairing||game.status!=='playing';
-  $('#repairLabel').firstChild.textContent=near?.type==='exit'?'开启闸门 ':near?.type==='heal'?'包扎伤口 ':'修理进度 ';
-  const progress=near?.type==='heal'?game.healProgress:near?.ref?.p||0;
-  $('#repair').textContent=repairing?Math.floor(progress)+'%':'—';$('#repairbar').style.width=repairing?progress+'%':'0%';
+  $('#repairPanel').hidden=(!repairing&&!decode)||game.status!=='playing';
+  $('#repairLabel').firstChild.textContent=decode?'正在破译 ':near?.type==='exit'?'开启闸门 ':near?.type==='heal'?'包扎伤口 ':'破译进度 ';
+  const progress=decode?.p??(near?.type==='heal'?game.healProgress:near?.ref?.p||0);
+  $('#repair').textContent=repairing||decode?Math.floor(progress)+'%':'—';$('#repairbar').style.width=repairing||decode?progress+'%':'0%';
+  const machine=game.generators.find(g=>g.p<100&&distance(g,game.player)<6);
+  $('#decodeButton').hidden=!machine||game.status!=='playing'||!$('#settings').hidden||!!game.calibration||!$('#rotateHint').classList.contains('dismissed')&&matchMedia('(pointer:coarse) and (orientation:portrait)').matches;
+  $('#decodeButton small').textContent=game.decoding===machine?'退出':'破译';
+  let decodePoint=null;
+  if(machine&&view==='iso'){const p=project(machine.x,machine.y,5);decodePoint={x:p.x+45,y:p.y-28};}
+  if(machine&&view==='third'&&three){const point=new three.T.Vector3(machine.x,3,machine.y).project(three.camera);if(point.z< -1||point.z>1)$('#decodeButton').hidden=true;decodePoint={x:(point.x+1)*width/2+45,y:(1-point.y)*height/2-25};}
+  if(decodePoint){const touch=matchMedia('(pointer:coarse)').matches,top=touch?105:65,bottom=touch?height-155:height-48,right=touch?width-205:width-40;$('#decodeButton').style.left=Math.max(45,Math.min(right,decodePoint.x))+'px';$('#decodeButton').style.top=Math.max(top,Math.min(Math.max(top,bottom),decodePoint.y))+'px';}
+  $('#calibration').hidden=!game.calibration||game.status!=='playing';
+  if(game.calibration)$('#calibrationNeedle').style.left=(game.calibration.elapsed/game.calibration.duration*100)+'%';
   const touch=matchMedia('(pointer:coarse)').matches,key=touch?'按住交互':'按住 E';
-  $('#prompt').textContent=close?near.type==='pallet'?(touch?'点击交互放下木板':'[ E ] 放下木板'):near.type==='window'?(touch?'点击交互翻越窗口':'[ E ] 翻越窗口'):near.type==='heal'?key+' 包扎 · 保持静止':near.type==='exit'?key+' 开门 · 保持静止':key+' 修理 · 保持静止':game.exit.p>=100?'穿过东侧出口':game.powered===3?'前往东侧闸门':'';
+  $('#prompt').textContent=game.calibration?'点击校准或按空格':decode?'破译中 · 移动中断':close?near.type==='pallet'?(touch?'点击交互放下木板':'[ E ] 放下木板'):near.type==='window'?(touch?'点击交互翻越窗口':'[ E ] 翻越窗口'):near.type==='heal'?key+' 包扎 · 保持静止':near.type==='exit'?key+' 开门 · 保持静止':'点击密码机旁按钮破译':game.exit.p>=100?'穿过东侧出口':game.powered===3?'前往东侧闸门':'';
   $('#dash').disabled=game.status!=='playing'||game.dashCooldown>0;
   $('#dash').classList.toggle('ready',game.dashCooldown<=0);
   $('#dashTime').textContent=game.dashCooldown>0?game.dashCooldown.toFixed(1)+'s':'Q · 疾步';

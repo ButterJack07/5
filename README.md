@@ -21,10 +21,10 @@ The 3D renderer loads Three.js from jsDelivr on first use; it requires internet 
 ## Controls
 
 - WASD / arrows: move; Shift: sprint; hold E: interact; Q: directional dash (5-second cooldown).
-- Remain stationary to repair generators and open the exit.
+- Approach a generator and tap the translucent decode button beside it (or E) once. Decoding runs automatically; press Space or tap the calibration prompt when its needle reaches the highlighted zone. Missing a calibration loses progress and alerts the hunter. Moving, dashing, or taking damage cancels decoding. Hold E while stationary to open the exit.
 - Near a standing pallet, E drops it and stuns a nearby hunter.
 - Near a window, E vaults across it. When injured, hold E while stationary to bandage yourself.
-- Dash follows the held movement direction (or your last facing direction while stationary), stops at obstacles, and does not consume cooldown if blocked immediately.
+- Dash follows the held movement direction (or your last facing direction while stationary), now travels up to 18 units, grants brief damage protection, 1.2 seconds of speed and reduced detection, stops at obstacles, and does not consume cooldown if blocked immediately. Cooldown remains 5 seconds.
 - In 3D, drag the scene to rotate the camera. Movement is camera-relative.
 - Mobile: virtual joystick, hold sprint / interact buttons, tap the dash skill button.
 - Switch views at any point without resetting the match.
