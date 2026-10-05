@@ -1,4 +1,4 @@
-import {Game, obstacles, walls, characters, distance, palletPose, SIZE, factory, upperDeck, groundHeight, ramps, upperFloors} from './game.js';
+import {Game, obstacles, walls, characters, hunters, distance, palletPose, SIZE, factory, upperDeck, groundHeight, ramps, upperFloors} from './game.js';
 import {inputKey, isGameKey} from './input.js';
 import {roofs} from './map.js';
 import {enableLayoutEditor} from './layout.js';
@@ -20,9 +20,37 @@ $('#decodeButton').onclick=()=>{const target=game.generators.find(g=>g.p<100&&di
 $('#calibrateButton').onpointerdown=e=>{e.preventDefault();game.calibrate();};
 $('#calibrateButton').onclick=e=>{if(e.detail===0)game.calibrate();};
 for(const id of ['interact','dash']){let el=$('#'+id);el.onpointerdown=e=>{if(layoutEditing()||id==='interact'&&game.palletVaultLock>0)return;e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
-function characterMenu(){const root=$('#characterSelect');root.replaceChildren();characters.forEach(c=>{const b=document.createElement('button');b.textContent=c.name;b.classList.toggle('selected',c.id===game.characterId);b.onclick=()=>{if(game.status!=='ready')game.reset();game.selectCharacter(c.id);characterMenu();};root.appendChild(b);});$('#skillDescription').textContent=game.character.skill+' · 冷却 '+game.character.cooldown+' 秒 — '+game.character.description;}
+function characterMenu(){
+  const root=$('#characterSelect');
+  root.replaceChildren();
+  const list=game.role==='hunter'?hunters:characters;
+  const currentId=game.role==='hunter'?game.hunterId:game.characterId;
+  list.forEach(c=>{
+    const b=document.createElement('button');
+    b.textContent=c.name;
+    b.classList.toggle('selected',c.id===currentId);
+    b.onclick=()=>{
+      if(game.status!=='ready')game.reset();
+      if(game.role==='hunter')game.selectHunter(c.id);
+      else game.selectCharacter(c.id);
+      characterMenu();
+    };
+    root.appendChild(b);
+  });
+  if(game.role==='hunter'){
+    const h=game.currentHunter;
+    $('#skillDescription').textContent=`监管者【${h.name}】· 武器【${h.weapon||'手爪'}】· 技能【${h.skill}】— ${h.description}（Q 轻斩 / 靠近按住 E 蓄力重刀）`;
+  }else{
+    $('#skillDescription').textContent=`求生者【${game.character.name}】· 技能【${game.character.skill}】(5秒冷却) — ${game.character.description}`;
+  }
+}
 characterMenu();
-document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{if(game.status!=='ready')game.reset();game.selectRole(b.dataset.role);document.querySelectorAll('[data-role]').forEach(v=>v.classList.toggle('selected',v===b));$('#characterSelect').hidden=game.role==='hunter';characterMenu();if(game.role==='hunter')$('#skillDescription').textContent='监管者 · Q 攻击（3 秒后摇），按住 E 拆板 1.5 秒。击倒 AI 逃生者获胜。';});
+document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{
+  if(game.status!=='ready')game.reset();
+  game.selectRole(b.dataset.role);
+  document.querySelectorAll('[data-role]').forEach(v=>v.classList.toggle('selected',v===b));
+  characterMenu();
+});
 let pointer=null;const stick=$('#stick');stick.onpointerdown=e=>{pointer=e.pointerId;stick.setPointerCapture(pointer);stickMove(e);};stick.onpointermove=e=>{if(pointer===e.pointerId)stickMove(e);};stick.onpointerup=stick.onpointercancel=()=>{pointer=null;joy={x:0,y:0};$('#nub').style.transform='';};
 function stickMove(e){let r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y);if(l>32){x*=32/l;y*=32/l;}joy={x:x/32,y:y/32};$('#nub').style.transform=`translate(${x}px,${y}px)`;}
 let drag=null;$('#stage').addEventListener('pointerdown',e=>{if(e.target===three?.renderer.domElement&&!drag){drag={id:e.pointerId,x:e.clientX,y:e.clientY};e.target.setPointerCapture(e.pointerId);}});$('#stage').addEventListener('pointermove',e=>{if(drag?.id===e.pointerId){cameraAngle-=(e.clientX-drag.x)*.006;cameraPitch=Math.max(-.3,Math.min(.8,cameraPitch+(e.clientY-drag.y)*.005));drag.x=e.clientX;drag.y=e.clientY;}});for(const name of ['pointerup','pointercancel','lostpointercapture'])$('#stage').addEventListener(name,e=>{if(drag?.id===e.pointerId)drag=null;});
@@ -55,7 +83,7 @@ function mesh(geo,color,x,y,z,parent=scene){const m=new T.Mesh(geo,new T.MeshSta
 function cube(x,y,z,w,h,d,color,parent){const m=mesh(new T.BoxGeometry(w,h,d),color,x,y,z,parent);if((x===96||x===136)&&color===0x81866b)m.visible=false;return m;}
 cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,.02,50,6,.03,100,0x62624a);
 cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
-walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
+walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
 buildArchitecture(T,scene);
 buildOutdoorDetailing(T,scene);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
@@ -89,7 +117,23 @@ function buildOutdoorDetailing(T,scene){
 }
 for(let i=0;i<160;i++){const x=(i*31.13)%SIZE+2,z=(i*17.43)%SIZE+2;if(roofs.some(r=>Math.abs(x-r.x)<r.w/2+2&&Math.abs(z-r.y)<r.d/2+2))continue;mesh(new T.ConeGeometry(.25,.7,3),0x61714b,x,.3,z);}
 const generators=game.generators.map(g=>{let group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);cube(0,1,0,3,2,2.4,0x8d7250,group);cube(0,2.4,0,1.7,.8,1.6,0x343f3b,group);const lamp=cube(0,2.6,-.85,1,.25,.1,0xecb471,group);return lamp;});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
-function character(color,hunter){const group=new T.Group();scene.add(group);cube(0,1.9,0,1.1,1.3,.7,color,group);mesh(new T.IcosahedronGeometry(.48,1),0xe5c6a0,0,3,0,group);const legs=[cube(-.3,.65,0,.38,1.2,.4,0x263534,group),cube(.3,.65,0,.38,1.2,.4,0x263534,group)];cube(-.8,1.9,0,.3,1,.35,color,group);cube(.8,1.9,0,.3,1,.35,color,group);if(hunter){cube(1.1,1.5,0,.15,2.5,.15,0x7e624a,group);cube(1.4,2.6,0,.7,.6,.15,0xadb3a2,group);}return {group,legs};}const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
+function character(color,hunter){
+  const group=new T.Group();scene.add(group);
+  const body=cube(0,1.9,0,1.1,1.3,.7,color,group);
+  mesh(new T.IcosahedronGeometry(.48,1),0xe5c6a0,0,3,0,group);
+  const legs=[cube(-.3,.65,0,.38,1.2,.4,0x263534,group),cube(.3,.65,0,.38,1.2,.4,0x263534,group)];
+  const armL=cube(-.8,1.9,0,.3,1,.35,color,group);
+  const armR=cube(.8,1.9,0,.3,1,.35,color,group);
+  if(hunter){
+    // Weapon hand with distinct weapon model and attack pivot
+    const wepPivot=new T.Group();wepPivot.position.set(1.1,1.9,0);group.add(wepPivot);
+    cube(0,-.4,0,.14,1.8,.14,0x544132,wepPivot); // handle
+    const blade=cube(.25,.4,0,.5,.8,.12,0xadb3a2,wepPivot); // blade / claw
+    group.userData.wepPivot=wepPivot;
+    group.userData.armR=armR;
+  }
+  return {group,legs,armL,armR};
+}const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
 function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}player.group.children[0].material.color.setHex(game.character.color);generators.forEach((m,i)=>{m.material.color.set(game.generators[i].p>=100?0xd6ed91:0xecb471);m.material.emissive.copy(m.material.color);m.material.emissiveIntensity=.5;});pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
 let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
 let previousMessage='',messageUntil=0;
@@ -130,7 +174,44 @@ function updateHUD(){
   $('.bottom').hidden=!$('#prompt').textContent||game.status!=='playing';
   $('#threat').textContent=game.stun>0?'追猎者已被眩晕':game.chasing?'危险 · 追猎者正在逼近':'';
   $('.threat').hidden=!$('#threat').textContent||game.status!=='playing';
-  if(three){three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);three.hunter.group.position.y=game.hunter.z||0;three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);three.pallets.forEach((m,i)=>{const p=game.pallets[i];if(!p){m.visible=false;return;}const pose=palletPose(p);m.visible=!p.broken;m.rotation.set(0,0,-pose.angle);m.scale.set(1.3/4,4/3,1);m.position.set(pose.baseX+2*Math.sin(pose.angle),2*Math.cos(pose.angle),p.y);});const glow=three.scene.getObjectByName('hunterRedLight');if(glow){glow.position.set(game.hunter.x,.07+(game.hunter.z||0),game.hunter.y);glow.rotation.y=game.hunter.angle||0;}const a=game.attack,weapon=three.hunter.group.children.slice(-2);weapon.forEach(m=>m.rotation.x=a?.phase==='windup'?-Math.sin(Math.min(1,a.elapsed/.55)*Math.PI)*1.4:a?.phase==='recovery'?Math.sin(a.elapsed*7)*.25:0);const focus=game.controlled;three.camera.position.set(focus.x+Math.sin(cameraAngle)*12,10+(focus.z||0),focus.y+Math.cos(cameraAngle)*12);three.camera.lookAt(focus.x,2+(focus.z||0),focus.y);three.renderer.render(three.scene,three.camera);}
+  if(three){
+    three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);
+    three.hunter.group.position.y=game.hunter.z||0;
+    three.hunter.group.children[0].material.color.setHex(game.currentHunter.color);
+    three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
+    three.pallets.forEach((m,i)=>{
+      const p=game.pallets[i];if(!p){m.visible=false;return;}
+      const pose=palletPose(p);m.visible=!p.broken;
+      m.rotation.set(0,0,-pose.angle);
+      m.scale.set(1.3/4,4/3,1);
+      m.position.set(pose.baseX+2*Math.sin(pose.angle),2*Math.cos(pose.angle),p.y);
+    });
+    const glow=three.scene.getObjectByName('hunterRedLight');
+    if(glow){glow.position.set(game.hunter.x,.07+(game.hunter.z||0),game.hunter.y);glow.rotation.y=game.hunter.angle||0;}
+
+    // Refined attack and recovery animations: windup slash, blade clean pause
+    const a=game.attack,pivot=three.hunter.group.userData?.wepPivot,armR=three.hunter.group.userData?.armR;
+    if(pivot&&armR){
+      if(a?.phase==='windup'){
+        const progress=Math.min(1,a.elapsed/a.duration);
+        pivot.rotation.x=-Math.sin(progress*Math.PI)*1.85; // heavy forward-downward cleave
+        pivot.rotation.z=-Math.sin(progress*Math.PI)*.45;
+        armR.rotation.x=pivot.rotation.x*.8;
+      }else if(a?.phase==='recovery'){
+        const progress=Math.min(1,a.elapsed/a.recoveryTime);
+        pivot.rotation.x=.65+Math.sin(progress*Math.PI*2)*.15; // blade raised across chest for wiping
+        pivot.rotation.z=.4;
+        armR.rotation.x=.5;
+      }else{
+        pivot.rotation.set(0,0,0);
+        armR.rotation.set(0,0,0);
+      }
+    }
+    const focus=game.controlled;
+    three.camera.position.set(focus.x+Math.sin(cameraAngle)*12,10+(focus.z||0),focus.y+Math.cos(cameraAngle)*12);
+    three.camera.lookAt(focus.x,2+(focus.z||0),focus.y);
+    three.renderer.render(three.scene,three.camera);
+  }
   if(three){three.gate.visible=false;for(const m of three.scene.children){if(m.name==='upperFloor'||m.name==='buildingRoof'){m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;}if(m.name==='escapeGate'){const e=game.exits.find(e=>e.x===m.userData.exit.x);m.position.y=2.5+(e?.p||0)/100*6;}}updateCamera();three.renderer.render(three.scene,three.camera);}
   if(['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
 }

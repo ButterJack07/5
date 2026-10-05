@@ -29,12 +29,55 @@ const shift=(p)=>{p.x+=30;p.y-=20;return p;};
 factory.footprint=factory.footprint.map(([x,y])=>[x+30,y-20]);factory.rooms.forEach(shift);
 walls.filter(w=>w.factory||w.rail).forEach(shift);ramps.forEach(r=>{shift(r);r.top-=20;r.bottom-=20;});upperFloors.forEach(shift);railings.forEach(shift);shift(upperDeck);
 outdoorWindows.filter(w=>w.x!==24).forEach(shift);outdoorPallets.filter(p=>p.y===88||p.y===134).forEach(shift);
-export const cottages=[{id:'west',x:24,y:75,w:18,d:12},{id:'east',x:164,y:135,w:18,d:12}];
+export const cottages=[
+  {id:'west',x:24,y:75,w:18,d:12,name:'护林人木屋'},
+  {id:'east',x:164,y:135,w:18,d:12,name:'守墓人石舍'},
+  {id:'north',x:142,y:38,w:16,d:14,name:'废弃马厩'},
+  {id:'south',x:56,y:152,w:15,d:12,name:'石匠工棚'}
+];
 walls.filter(w=>w.cottage).forEach(w=>w.building='west');
-walls.push(...walls.filter(w=>w.cottage).map(w=>({...w,x:w.x+140,y:w.y+60,building:'east'})));
-outdoorWindows.push({x:164,y:129});outdoorPallets.push({x:164,y:141});
+walls.push(...walls.filter(w=>w.cottage&&w.building==='west').map(w=>({...w,x:w.x+140,y:w.y+60,building:'east'})));
+// North stable structure: stone pillars, open stall gates, side window
+walls.push(...[
+  {x:134,y:38,w:1,d:14},{x:150,y:38,w:1,d:14},{x:142,y:31,w:16,d:1},{x:138,y:45,w:6,d:1},{x:147,y:45,w:4,d:1}
+].map(w=>({...w,h:4.5,building:'north',cottage:true})));
+// South stone masonry shelter: half-open workshop with sturdy low walls
+walls.push(...[
+  {x:48.5,y:152,w:1,d:12},{x:63.5,y:152,w:1,d:12},{x:56,y:146,w:15,d:1},{x:52,y:158,w:6,d:1},{x:61,y:158,w:4,d:1}
+].map(w=>({...w,h:4.2,building:'south',cottage:true})));
+
+// Add barrel clusters: interactive wooden barrel stacks that act as obstacles in loops
+export const barrels=[
+  {x:94,y:137,w:3.6,d:2.6,h:2.2,count:5},
+  {x:68,y:82,w:3,d:2.5,h:2,count:4},
+  {x:132,y:86,w:3.2,d:2.4,h:2.2,count:4},
+  {x:152,y:48,w:4,d:2.8,h:2.3,count:6},
+  {x:35,y:82,w:3.5,d:2.6,h:2.2,count:5},
+  {x:48,y:142,w:3.2,d:2.4,h:2,count:4},
+  {x:154,y:128,w:3.5,d:2.5,h:2.2,count:5},
+  {x:108,y:48,w:3,d:2.2,h:2,count:4}
+];
+walls.push(...barrels.map(b=>({x:b.x,y:b.y,w:b.w,d:b.d,h:b.h,barrelCluster:true})));
+
+// More outdoor decorative stone fences and cemetery boundary wall segments
+export const outdoorStoneWalls=[
+  {x:68,y:60,w:14,d:.8,h:2.4,brickWall:true},
+  {x:128,y:58,w:16,d:.8,h:2.4,brickWall:true},
+  {x:64,y:128,w:12,d:.8,h:2.4,brickWall:true},
+  {x:138,y:115,w:14,d:.8,h:2.4,brickWall:true},
+  {x:82,y:148,w:18,d:.8,h:2.4,brickWall:true},
+  {x:122,y:148,w:16,d:.8,h:2.4,brickWall:true}
+];
+walls.push(...outdoorStoneWalls);
+
+outdoorWindows.push({x:164,y:129},{x:142,y:31},{x:56,y:146});
+outdoorPallets.push({x:164,y:141},{x:142,y:45},{x:57,y:158});
 export const exits=[{x:8,y:75,side:-1},{x:192,y:145,side:1}];
-export const roofs=[{x:94,y:91,w:40,d:46,z:12,building:'factory'},{x:120,y:89,w:12,d:30,z:12,building:'factory'},...cottages.map(c=>({...c,z:6,building:c.id}))];
+export const roofs=[
+  {x:94,y:91,w:40,d:46,z:12,building:'factory'},
+  {x:120,y:89,w:12,d:30,z:12,building:'factory'},
+  ...cottages.map(c=>({...c,z:c.h||5,building:c.id}))
+];
 obstacles.push(...[[155,35,5],[162,73,4],[153,102,5],[52,154,5],[117,165,6],[174,171,4]].map(([x,y,r])=>({x,y,r,type:'rock',h:r*.8})),...[[160,20],[180,45],[171,96],[144,158],[27,160],[65,178],[185,186],[132,181]].map(([x,y])=>({x,y,r:2.8,type:'tree',h:8})));
 for(let i=obstacles.length-1;i>=0;i--)if(ramps.some(r=>Math.abs(obstacles[i].x-r.x)<r.w/2+obstacles[i].r+4&&obstacles[i].y>r.top-6&&obstacles[i].y<r.bottom+6))obstacles.splice(i,1);
 for(const rock of obstacles.filter(o=>o.type==='rock')){rock.w=rock.r*1.5;rock.d=rock.r;rock.radius=rock.r;rock.r=0;}

@@ -1,12 +1,46 @@
-import {walls,roofs,factory,cottages,churchFurniture} from './map.js';
+import {walls,roofs,factory,cottages,churchFurniture,barrels,outdoorStoneWalls} from './map.js';
 
 // Procedural masonry uses a shared texture and instanced trim to keep draw calls bounded.
 export function buildArchitecture(T,scene){
   function texture(){const c=document.createElement('canvas');c.width=c.height=256;const p=c.getContext('2d');p.fillStyle='#57504a';p.fillRect(0,0,256,256);for(let row=0;row<16;row++)for(let col=-1;col<9;col++){const n=(row*31+col*17+500)%24;p.fillStyle=`rgb(${100+n},${82+n},${66+n})`;p.fillRect(col*32+(row%2)*16+1,row*16+1,30,14);p.fillStyle='#ffffff09';p.fillRect(col*32+(row%2)*16+2,row*16+2,28,2);}const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(2,2);t.colorSpace=T.SRGBColorSpace;return t;}
-  const brick=new T.MeshStandardMaterial({map:texture(),roughness:.94}),stone=new T.MeshStandardMaterial({color:0xa49c85,roughness:.92}),iron=new T.MeshStandardMaterial({color:0x34433f,metalness:.65,roughness:.57}),wood=new T.MeshStandardMaterial({color:0x64513e,roughness:.88}),glass=new T.MeshStandardMaterial({color:0x273d40,metalness:.3,roughness:.25}),slate=new T.MeshStandardMaterial({color:0x384b4b,roughness:.8});
+  const brick=new T.MeshStandardMaterial({map:texture(),roughness:.94}),stone=new T.MeshStandardMaterial({color:0xa49c85,roughness:.92}),iron=new T.MeshStandardMaterial({color:0x34433f,metalness:.65,roughness:.57}),wood=new T.MeshStandardMaterial({color:0x64513e,roughness:.88}),glass=new T.MeshStandardMaterial({color:0x273d40,metalness:.3,roughness:.25}),slate=new T.MeshStandardMaterial({color:0x384b4b,roughness:.8}),barrelWood=new T.MeshStandardMaterial({color:0x7a5a3a,roughness:.9});
   const batches=new Map();
   function block(x,y,z,w,h,d,mat,rot=0){if(!batches.has(mat))batches.set(mat,[]);batches.get(mat).push({x,y,z,w,h,d,rot});}
   function mesh(geo,mat,x,y,z){const m=new T.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);return m;}
+
+  // Dedicated European stone walls and low perimeter barriers
+  for(const sw of outdoorStoneWalls){
+    block(sw.x,sw.h/2,sw.y,sw.w,sw.h,sw.d,stone);
+    block(sw.x,sw.h+.15,sw.y,sw.w+.3,.3,sw.d+.3,stone);
+    // Add stone piers every 5-6 meters on outdoor fences
+    const count=Math.max(2,Math.round(sw.w/5));
+    for(let i=0;i<count;i++){
+      const ox=sw.x-sw.w/2+i*(sw.w/(count-1));
+      block(ox,sw.h/2+.2,sw.y,1.2,sw.h+.4,1.2,stone);
+      block(ox,sw.h+.5,sw.y,1.4,.2,1.4,stone);
+    }
+  }
+
+  // Realistic stacked wooden barrels (with iron hoops)
+  for(const bc of barrels){
+    const offsets=[[0,0,0],[.9,0,.5],[-.8,0,.6],[.2,1.1,.2],[-.7,0,-.5],[.8,0,-.6]];
+    for(let i=0;i<Math.min(bc.count,offsets.length);i++){
+      const [ox,oy,oz]=offsets[i];
+      const barrel=new T.Group();
+      barrel.position.set(bc.x+ox*.9,oy+1.05,bc.y+oz*.8);
+      scene.add(barrel);
+      const bMesh=new T.Mesh(new T.CylinderGeometry(.62,.62,1.9,10),barrelWood);
+      bMesh.scale.set(1.15,1,1.15);
+      bMesh.castShadow=true;bMesh.receiveShadow=true;
+      barrel.add(bMesh);
+      // Two metal bands on each barrel
+      for(const by of [-.45,.45]){
+        const ring=new T.Mesh(new T.CylinderGeometry(.72,.72,.09,10),iron);
+        ring.position.y=by;
+        barrel.add(ring);
+      }
+    }
+  }
   for(const w of walls){if(w.rail){const base=w.base||0,len=Math.max(w.w,w.d),n=Math.ceil(len/1.8);for(let i=0;i<=n;i++){const x=w.x+(w.w>w.d?(i/n-.5)*w.w:0),z=w.y+(w.d>w.w?(i/n-.5)*w.d:0);block(x,base+.65,z,.09,1.3,.09,iron);}for(const y of [.5,1.3])block(w.x,base+y,w.y,w.w,.08,w.d,iron);continue;}if(!w.factory&&!w.cottage)continue;const h=w.h||4;block(w.x,h/2,w.y,w.w,h,w.d,brick);block(w.x,.3,w.y,w.w+.12,.6,w.d+.12,stone);block(w.x,h-.3,w.y,w.w+.32,.3,w.d+.32,stone);if(w.factory)block(w.x,4.3,w.y,w.w+.15,.25,w.d+.15,stone);
     const alongX=w.w>w.d,len=Math.max(w.w,w.d),n=Math.floor(len/6);for(let i=0;i<=n;i++){const u=n?(i/n-.5)*(len-.5):0,x=w.x+(alongX?u:0),z=w.y+(!alongX?u:0);block(x,h/2,z,alongX?.45:w.w+.3,h,alongX?w.d+.3:.45,stone);}
     if(len>5){const count=Math.floor(len/5);for(let i=0;i<count;i++){const u=((i+.5)/count-.5)*(len-1),x=w.x+(alongX?u:0),z=w.y+(alongX?0:u),y=w.factory?6.5:2.6;const g=new T.Group();g.position.set(x,y,z);g.rotation.y=alongX?0:Math.PI/2;scene.add(g);for(const side of [-1,1]){const pane=new T.Mesh(new T.PlaneGeometry(1.6,1.9),glass);pane.position.z=side*.52;pane.rotation.y=side<0?Math.PI:0;g.add(pane);const arch=new T.Mesh(new T.TorusGeometry(.86,.11,5,16,Math.PI),stone);arch.position.set(0,.95,side*.58);g.add(arch);for(const xx of [-.88,0,.88]){const bar=new T.Mesh(new T.BoxGeometry(xx===0?.06:.15,2,.15),xx===0?iron:stone);bar.position.set(xx,0,side*.58);g.add(bar);}const sill=new T.Mesh(new T.BoxGeometry(2,.18,.3),stone);sill.position.set(0,-1,side*.6);g.add(sill);}}}

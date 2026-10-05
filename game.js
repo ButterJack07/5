@@ -3,10 +3,27 @@ export const SIZE=map.SIZE;
 export const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function palletPose(p){const progress=p.down?1-(p.drop||0)/.4:0,angle=.18+Math.max(0,progress)*(Math.PI/2-.18);return {baseX:p.x-2,angle,length:4,tipX:p.x-2+4*Math.sin(angle),tipZ:4*Math.cos(angle)};}
 export const characters=[
-  {id:'courier',name:'林间信使',skill:'疾步',cooldown:5,description:'向面朝方向持续冲刺 0.8 秒，速度为普通移动的 2.6 倍。碰到墙体立即停止，不穿墙、不瞬移。',color:0xafc77d},
-  {id:'warden',name:'守灯人',skill:'护光',cooldown:5,description:'展开持续 2 秒的护光，抵挡一次攻击。护光不会恢复伤势，也不提供位移。',color:0xe1ba74},
-  {id:'mist',name:'雾行者',skill:'烟幕',cooldown:5,description:'在当前位置留下持续 4 秒的烟幕，遮断追猎者视线与追踪。近身仍可能受击。',color:0x8fbfc2},
-  {id:'doctor',name:'医生',skill:'自愈',cooldown:5,description:'受伤时使用技能，原地治疗 3 秒恢复健康。移动、翻越或受击中断治疗；其他角色不能自愈。',color:0xe1ddd2}
+  {id:'mercenary',name:'佣兵',skill:'钢铁冲刺',cooldown:5,description:'向面朝方向利用肘部护腕高速弹射冲刺 0.9 秒，碰到障碍即停，强行拉开身位。',color:0x4f6d53},
+  {id:'doctor',name:'医生',skill:'自愈针剂',cooldown:5,description:'受伤时使用技能，原地快速注射包扎 3 秒恢复健康。移动或受击中断。',color:0xe1ddd2},
+  {id:'seer',name:'先知',skill:'役鸟守护',cooldown:5,description:'驱使役鸟在自身周围盘旋 2.5 秒，抵挡一次监管者攻击。',color:0x3c5166},
+  {id:'prospector',name:'勘探员',skill:'磁铁弹射',cooldown:5,description:'向前方掷出同极磁铁，将自身强力向后弹射或反推追猎者拉开 8 米距离。',color:0x85583b},
+  {id:'perfumer',name:'调香师',skill:'忘忧之香',cooldown:5,description:'记录当前位置与血量，若 3 秒内再次按技能可回溯到记录点（受击后可瞬间倒流回血）。',color:0x8e5f88},
+  {id:'acrobat',name:'杂技演员',skill:'爆弹跳跃',cooldown:5,description:'向前腾空翻滚跃出一段距离并丢下冷却余烬阻滞追猎者。',color:0xb8860b},
+  {id:'forward',name:'前锋',skill:'橄榄球冲刺',cooldown:5,description:'抱着橄榄球向前狂暴冲锋 1.4 秒，撞到监管者可将其撞退并眩晕 2 秒！',color:0xad4630},
+  {id:'coordinator',name:'空军',skill:'信号枪狙击',cooldown:5,description:'举起信号枪发射精准信号弹，直接命中监管者使其原地眩晕 3 秒。',color:0x51647a},
+  {id:'priestess',name:'祭司',skill:'直线通道',cooldown:5,description:'在面前障碍物或墙体上瞬间打通一条直线传送门，直接穿墙到达另一侧。',color:0x544061},
+  {id:'antiquarian',name:'古董商',skill:'止戈机关棍',cooldown:5,description:'挥舞藏锋机关棍向前方横扫，击退监管者并使其缴械禁用普通攻击 2 秒。',color:0x3e6b5c},
+  {id:'cheerleader',name:'拉拉队员',skill:'振奋鼓舞',cooldown:5,description:'摇动花球为自身注入振奋活力，立刻清除所有负面减速并获得持续 2.5 秒的 40% 爆发加速。',color:0xc4693b},
+  {id:'puppeteer',name:'“心理学家”',skill:'移情口哨',cooldown:5,description:'吹响催眠口哨产生应激心理屏障，在受到下一次普通攻击时仅受微量应激并加速逃脱。',color:0xa3967d}
+];
+
+export const hunters=[
+  {id:'ripper',name:'“杰克”',skill:'雾刃突刺',cooldown:5,weapon:'爪刃',description:'隐匿于浓雾之中，普通挥击附带远距离雾刃刀气，并可在雾区中潜行加速。',color:0x2f3e46},
+  {id:'geisha',name:'红蝶',skill:'刹那生灭',cooldown:5,description:'凝视求生者面部化身般若相，无视障碍物瞬间直线飞掠瞬移至目标身前。',color:0x8b3a3a},
+  {id:'smiley',name:'小丑',skill:'火箭冲刺',cooldown:5,description:'装配推进器举起火箭筒向前极速狂飙冲锋，可随时转向撞击求生者。',color:0x9e5727},
+  {id:'wu_chang',name:'宿伞之魂',skill:'诸魄荡魄',cooldown:5,description:'摇动涤魂铃或掷伞传送，使大范围内的求生者心智失常进入 2 秒失魂僵直。',color:0x222222},
+  {id:'bloody_queen',name:'红夫人',skill:'水镜镜像',cooldown:5,description:'在前方召唤一道映照全场的巨大水镜，镜像本体同步挥刀，跨地形隔空挥砍！',color:0x7d2843},
+  {id:'opera_singer',name:'歌剧演员',skill:'暗影潜行',cooldown:5,description:'跃入影域化为暗影高速穿梭，在影痕之间连续回跃突袭。',color:0x403152}
 ];
 export const obstacles=[[12,12],[23,17],[43,12],[66,12],[84,14],[12,38],[36,34],[61,30],[86,35],[18,62],[42,59],[67,63],[87,70],[12,87],[38,86],[62,88],[83,91]].map(([x,y],i)=>({x,y,r:2.8,type:'tree',h:7+i%4}));
 // Window openings and pallet doorways share the exact gap geometry used by both renderers.
@@ -46,16 +63,60 @@ walls.push({x:108,y:14,w:.4,d:12,h:1.3,base:4,rail:true},{x:122,y:14,w:.4,d:12,h
 walls.splice(0,walls.length,...map.walls);obstacles.splice(0,obstacles.length,...map.obstacles);outdoorWindows.splice(0,outdoorWindows.length,...map.outdoorWindows);outdoorPallets.splice(0,outdoorPallets.length,...map.outdoorPallets);Object.assign(factory,map.factory);Object.assign(upperDeck,map.upperDeck);
 export const ramps=map.ramps,upperFloors=map.upperFloors;
 export class Game{
-  constructor(){this.characterId='courier';this.role='survivor';this.reset();}
+  constructor(){this.characterId='mercenary';this.hunterId='ripper';this.role='survivor';this.reset();}
   reset(){this.resetState();this.configureMap();this.attack=null;this.healing=false;this.collisionHeight=0;this.palletVaultLock=0;this.palletReleaseRequired=false;}
   get controlled(){return this.role==='hunter'?this.hunter:this.player;}
+  get currentHunter(){return hunters.find(h=>h.id===this.hunterId)||hunters[0];}
+  selectHunter(id){if(this.status!=='ready'||!hunters.some(h=>h.id===id))return false;this.hunterId=id;return true;}
   configureMap(){this.player={x:36,y:55,z:0,angle:0};this.hunter={x:150,y:60,z:0,angle:0};this.windows=map.outdoorWindows.map(w=>({...w}));this.pallets=[{x:24,y:81},...map.outdoorPallets].map(p=>({...p,down:false,drop:0,broken:false}));this.generators=[{x:28,y:42,p:0},{x:121,y:96,p:0},{x:159,y:143,p:0}];this.exits=map.exits.map(e=>({...e,p:0}));this.exit=this.exits[0];}
   selectRole(role){if(this.status!=='ready'||!['survivor','hunter'].includes(role))return false;this.role=role;return true;}
   unstick(actor){this.collisionHeight=actor.z||0;if(!this.blocked(actor.x,actor.y)){this.collisionHeight=0;return;}this.resolveCollision(actor);this.collisionHeight=0;this.pathTimer=0;}
   breakPallet(){const p=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);if(!p)return false;if(!this.attack)this.beginAttack();return true;}
-  beginAttack(){if(this.attack||this.stun>0||this.hunterAttackCooldown>0)return false;this.attack={phase:'windup',elapsed:0,angle:this.hunter.angle||0};this.message='监管者挥击';return true;}
-  inAttackCone(target){if(Math.abs((target.z||0)-(this.hunter.z||0))>1.5)return false;const dx=target.x-this.hunter.x,dy=target.y-this.hunter.y,d=Math.hypot(dx,dy);return d<4.8&&(d<.8||(dx*Math.sin(this.attack.angle)+dy*Math.cos(this.attack.angle))/d>.25);}
-  updateAttack(dt){if(!this.attack)return;if(this.stun>0){this.attack=null;return;}const a=this.attack;a.elapsed+=dt;if(a.phase==='windup'&&a.elapsed>=.55){let hit=false;const p=this.pallets.find(p=>p.down&&!p.broken&&this.inAttackCone(p));if(p){p.broken=true;p.down=false;this.pathTimer=0;this.message='挥击破坏木板';hit=true;}else if(this.inAttackCone(this.player)&&this.visible()&&this.invincible===0){this.stopDecode();if(this.shield>0){this.shield=0;this.message='护光抵挡攻击';}else{this.health--;this.vault=null;this.dashRemaining=0;this.healProgress=0;this.invincible=3;this.message=this.health?'受伤！短暂加速':'逃生者已倒地';if(this.health<=0)this.status='lost';}hit=true;}a.phase='recovery';a.elapsed=0;a.duration=hit?2.1:1.1;this.hunterAttackCooldown=a.duration;if(!hit)this.message='挥击落空';}else if(a.phase==='recovery'&&a.elapsed>=a.duration){this.attack=null;this.hunterAttackCooldown=0;}}
+  beginAttack(charged=false){
+    if(this.attack||this.stun>0||this.hunterAttackCooldown>0)return false;
+    this.attack={phase:'windup',elapsed:0,angle:this.hunter.angle||0,charged,duration:charged?.85:.45};
+    this.message=charged?'监管者蓄力重击！':'监管者挥刀！';
+    return true;
+  }
+  inAttackCone(target){
+    if(Math.abs((target.z||0)-(this.hunter.z||0))>1.5)return false;
+    const dx=target.x-this.hunter.x,dy=target.y-this.hunter.y,d=Math.hypot(dx,dy);
+    const reach=this.attack?.charged?6.2:(this.hunterId==='ripper'?5.5:4.8);
+    const spread=this.attack?.charged?.4:.25;
+    return d<reach&&(d<.8||(dx*Math.sin(this.attack.angle)+dy*Math.cos(this.attack.angle))/d>spread);
+  }
+  updateAttack(dt){
+    if(!this.attack)return;
+    if(this.stun>0){this.attack=null;return;}
+    const a=this.attack;
+    a.elapsed+=dt;
+    if(a.phase==='windup'&&a.elapsed>=a.duration){
+      let hit=false;
+      const p=this.pallets.find(p=>p.down&&!p.broken&&this.inAttackCone(p));
+      if(p){
+        p.broken=true;p.down=false;this.pathTimer=0;
+        this.message='挥刀劈碎木板！';hit=true;
+      }else if(this.inAttackCone(this.player)&&this.visible()&&this.invincible===0){
+        this.stopDecode();
+        if(this.shield>0){
+          this.shield=0;this.message='役鸟抵挡攻击！';
+        }else{
+          this.health--;this.vault=null;this.dashRemaining=0;this.healProgress=0;
+          this.invincible=3;
+          this.message=this.health?'击中求生者！':'求生者已击倒！';
+          if(this.health<=0)this.status='lost';
+        }
+        hit=true;
+      }
+      a.phase='recovery';a.elapsed=0;
+      // Precise blade wiping recovery time
+      a.recoveryTime=hit?1.8:0.9;
+      this.hunterAttackCooldown=a.recoveryTime;
+      if(!hit)this.message='出刀落空（擦刀间隙）';
+    }else if(a.phase==='recovery'&&a.elapsed>=a.recoveryTime){
+      this.attack=null;this.hunterAttackCooldown=0;
+    }
+  }
   get character(){return characters.find(c=>c.id===this.characterId)||characters[0];}
   selectCharacter(id){if(this.status!=='ready'||!characters.some(c=>c.id===id))return false;this.characterId=id;return true;}
   resetState(){this.player={x:48,y:73,angle:0};this.hunter={x:12,y:20,angle:0};this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;}
@@ -73,12 +134,114 @@ export class Game{
   move(actor,x,y){actor.z=actor.z||0;this.collisionHeight=actor.z;const n=Math.max(1,Math.ceil(Math.hypot(x,y)/.2));for(let i=0;i<n;i++){const old={x:actor.x,y:actor.y};if(map.canStep(actor,actor.x+x/n,actor.y+y/n)){actor.x+=x/n;actor.y+=y/n;this.resolveCollision(actor);const nz=groundHeight(actor.x,actor.y,actor.z);if(actor.z-nz>.6)actor.falling=true;else if(!actor.falling)actor.z=nz;}else Object.assign(actor,old);this.collisionHeight=actor.z;}this.collisionHeight=0;if(x||y)actor.angle=Math.atan2(x,y);}
   updateFalls(dt){for(const actor of [this.player,this.hunter]){if(!actor.falling)continue;actor.fallSpeed=(actor.fallSpeed||0)+24*dt;const floor=groundHeight(actor.x,actor.y,0);actor.z=Math.max(floor,actor.z-actor.fallSpeed*dt);if(actor.z<=floor){actor.falling=false;actor.fallSpeed=0;this.collisionHeight=floor;this.resolveCollision(actor);this.collisionHeight=0;}}}
   separateActors(){if(this.vault||Math.abs((this.player.z||0)-(this.hunter.z||0))>1.5)return;const dx=this.hunter.x-this.player.x,dy=this.hunter.y-this.player.y,d=Math.hypot(dx,dy),min=1.65;if(d>=min)return;const nx=d?dx/d:Math.sin(this.hunter.angle||0),ny=d?dy/d:Math.cos(this.hunter.angle||0);this.move(this.hunter,nx*(min-d),ny*(min-d));}
-  dash(x=0,y=0){if(this.status!=='playing'||this.dashCooldown>0||this.vault)return false;if(this.characterId==='doctor'&&this.health!==1){this.message='健康时无需自愈';return false;}this.stopDecode();if(this.characterId==='doctor'){this.healing=true;this.healProgress=0;this.message='医生正在自愈 · 保持静止';}else if(this.characterId==='warden'){this.shield=2;this.message='护光展开 · 抵挡一次攻击';}else if(this.characterId==='mist'){this.smoke={x:this.player.x,y:this.player.y,time:4,r:9};this.memory=0;this.alert=0;this.message='烟幕已释放';}else{const len=Math.hypot(x,y);if(len>.1)this.player.angle=Math.atan2(x,y);this.dashDirection={x:Math.sin(this.player.angle),y:Math.cos(this.player.angle)};if(this.blocked(this.player.x+this.dashDirection.x*.4,this.player.y+this.dashDirection.y*.4))return false;this.dashRemaining=.8;this.dashFlash=.8;this.message='疾步冲刺';}this.dashCooldown=5;return true;}
+  dash(x=0,y=0){
+    if(this.status!=='playing'||this.dashCooldown>0||this.vault)return false;
+    this.stopDecode();
+    const len=Math.hypot(x,y);
+    if(len>.1)this.player.angle=Math.atan2(x,y);
+
+    if(this.characterId==='perfumer'){
+      if(this.perfumeState){
+        // Rewind position and restore saved health
+        this.player.x=this.perfumeState.x;
+        this.player.y=this.perfumeState.y;
+        this.player.z=this.perfumeState.z||0;
+        this.health=Math.max(this.health,this.perfumeState.health);
+        this.perfumeState=null;
+        this.dashCooldown=5;
+        this.message='忘忧之香 · 状态已回溯';
+        return true;
+      }else{
+        this.perfumeState={x:this.player.x,y:this.player.y,z:this.player.z||0,health:this.health,timer:3.5};
+        this.dashFlash=3.5;
+        this.message='香气记录中 · 3.5秒内再次使用回溯';
+        return true;
+      }
+    }
+
+    if(this.characterId==='doctor'){
+      if(this.health!==1){this.message='健康时无需自愈';return false;}
+      this.healing=true;this.healProgress=0;this.message='医生正在自愈 · 保持静止';
+    }else if(this.characterId==='seer'){
+      this.shield=2.5;this.message='役鸟守护 · 2.5秒内抵挡一次攻击';
+    }else if(this.characterId==='prospector'){
+      // Magnet repels: push hunter away or bounce player back
+      const dx=this.hunter.x-this.player.x,dy=this.hunter.y-this.player.y,d=Math.hypot(dx,dy);
+      if(d<12){
+        this.hunter.x+=dx/d*6;this.hunter.y+=dy/d*6;this.resolveCollision(this.hunter);
+        this.player.x-=dx/d*5;this.player.y-=dy/d*5;this.resolveCollision(this.player);
+        this.stun=1.5;
+        this.message='同极磁铁互斥！追猎者被弹开并眩晕';
+      }else{
+        const fx=Math.sin(this.player.angle),fy=Math.cos(this.player.angle);
+        this.player.x-=fx*7;this.player.y-=fy*7;this.resolveCollision(this.player);
+        this.message='磁力排斥 · 自身后撤弹射';
+      }
+    }else if(this.characterId==='acrobat'){
+      const fx=Math.sin(this.player.angle),fy=Math.cos(this.player.angle);
+      this.player.x+=fx*8;this.player.y+=fy*8;this.resolveCollision(this.player);
+      this.smoke={x:this.player.x-fx*3,y:this.player.y-fy*3,time:3.5,r:6};
+      this.message='爆弹翻跃 · 留下余烬减速障';
+    }else if(this.characterId==='forward'){
+      this.dashDirection={x:Math.sin(this.player.angle),y:Math.cos(this.player.angle)};
+      this.dashRemaining=1.4;this.dashFlash=1.4;
+      this.message='橄榄球冲刺！高速冲锋撞击';
+    }else if(this.characterId==='coordinator'){
+      const dx=this.hunter.x-this.player.x,dy=this.hunter.y-this.player.y,d=Math.hypot(dx,dy);
+      if(d<28&&this.visible()){
+        this.stun=3.2;this.alert=5;
+        this.message='信号枪命中！追猎者原地眩晕 3.2 秒';
+      }else{
+        this.message='信号枪落空（距离过远或视线受阻）';
+      }
+    }else if(this.characterId==='priestess'){
+      const fx=Math.sin(this.player.angle),fy=Math.cos(this.player.angle);
+      let passed=false;
+      for(let step=3;step<=9;step+=.5){
+        const nx=this.player.x+fx*step,ny=this.player.y+fy*step;
+        if(!this.blocked(nx,ny)){
+          this.player.x=nx;this.player.y=ny;passed=true;break;
+        }
+      }
+      this.message=passed?'门之钥 · 直线通道穿墙穿透！':'前方开阔，无需打通通道';
+    }else if(this.characterId==='antiquarian'){
+      const dx=this.hunter.x-this.player.x,dy=this.hunter.y-this.player.y,d=Math.hypot(dx,dy);
+      if(d<6.5){
+        this.hunter.x+=dx/d*5;this.hunter.y+=dy/d*5;this.resolveCollision(this.hunter);
+        this.hunterAttackCooldown=2.5;
+        this.message='藏锋横扫！击退追猎者并缴械 2.5 秒';
+      }else{
+        this.message='机关棍挥空';
+      }
+    }else if(this.characterId==='cheerleader'){
+      this.vaultBoost=2.5;
+      this.invincible=Math.max(this.invincible,1.2);
+      this.message='振奋鼓舞！移动速度爆发 +40%';
+    }else if(this.characterId==='puppeteer'){
+      this.shield=3;
+      this.message='应激屏障生效 · 抵挡下一次攻击';
+    }else{
+      // Mercenary / default continuous high speed dash
+      this.dashDirection={x:Math.sin(this.player.angle),y:Math.cos(this.player.angle)};
+      if(this.blocked(this.player.x+this.dashDirection.x*.4,this.player.y+this.dashDirection.y*.4))return false;
+      this.dashRemaining=.9;this.dashFlash=.9;this.message='钢铁冲刺！肘部护腕高速弹射';
+    }
+    this.dashCooldown=5;
+    return true;
+  }
   beginVault(o){if(this.vault||this.dashRemaining>0||this.vaultCooldown>0||o.type==='palletVault'&&(this.palletVaultLock>0||this.palletReleaseRequired)||Math.abs(this.player.x-o.x)>2.6||Math.abs(this.player.y-o.y)>3)return false;const sign=this.player.y<o.y?1:-1,to={x:o.x,y:o.y+sign*1.8};if(this.blocked(to.x,to.y,.85))return false;this.stopDecode();this.vault={from:{...this.player},to,elapsed:0,duration:1,type:o.type,boost:o.type==='window'};this.player.angle=sign>0?0:Math.PI;this.message=o.type==='window'?'翻越窗口':'翻越木板';return true;}
   visible(){if(this.smoke&&(distance(this.player,this.smoke)<this.smoke.r||distance(this.hunter,this.smoke)<this.smoke.r))return false;const d=distance(this.player,this.hunter);for(let i=0;i<=d;i+=.5){const t=i/Math.max(d,1),x=this.hunter.x+(this.player.x-this.hunter.x)*t,y=this.hunter.y+(this.player.y-this.hunter.y)*t;if(obstacles.some(o=>Math.hypot(x-o.x,y-o.y)<o.r)||walls.some(w=>Math.abs(x-w.x)<w.w/2&&Math.abs(y-w.y)<w.d/2))return false;}return true;}
   findPath(target){const n=SIZE/2,key=(x,y)=>y*n+x,start={x:Math.floor(this.hunter.x/2),y:Math.floor(this.hunter.y/2)},end={x:Math.floor(target.x/2),y:Math.floor(target.y/2)},queue=[start],seen=new Map([[key(start.x,start.y),null]]);let found=null;for(let k=0;k<queue.length;k++){const a=queue[k];if(a.x===end.x&&a.y===end.y){found=a;break;}for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=a.x+dx,y=a.y+dy,id=key(x,y);if(x<0||y<0||x>=n||y>=n||seen.has(id)||this.blocked(x*2+1,y*2+1,.8))continue;seen.set(id,a);queue.push({x,y});}}const path=[];while(found){path.unshift({x:found.x*2+1,y:found.y*2+1});found=seen.get(key(found.x,found.y));}return path.slice(1);}
   update(dt,input){if(this.status!=='playing')return;if(this.role==='hunter'){this.hunterInput=input;const danger=distance(this.hunter,this.player)<18;const target=danger?{x:Math.max(3,Math.min(97,this.player.x+(this.player.x-this.hunter.x)*2)),y:Math.max(3,Math.min(97,this.player.y+(this.player.y-this.hunter.y)*2))}:this.generators.find(g=>g.p<100)||this.exit;const dx=target.x-this.player.x,dy=target.y-this.player.y,l=Math.hypot(dx,dy)||1;const near=this.nearby;this.updateSimulation(dt,{x:danger||l>4?dx/l:0,y:danger||l>4?dy/l:0,interact:!danger&&l<6||danger&&near?.type==='pallet'&&distance(near,this.player)<3.5,dash:danger&&this.dashCooldown===0});}else this.updateSimulation(dt,input);}
   updateSimulation(dt,input){if(this.status!=='playing')return;this.elapsed+=dt;this.time-=dt;for(const p of ['invincible','stun','alert','dashCooldown','dashFlash','shield','vaultBoost','vaultCooldown','hunterAttackCooldown'])this[p]=Math.max(0,this[p]-dt);if(this.smoke){this.smoke.time-=dt;if(this.smoke.time<=0)this.smoke=null;}this.pallets.forEach(p=>p.drop=Math.max(0,p.drop-dt));this.unstick(this.hunter);let {x=0,y=0}=input,len=Math.hypot(x,y);if(len>1){x/=len;y/=len;}if(input.dash&&!this.lastDash)this.dash(x,y);this.lastDash=!!input.dash;
+    if(this.perfumeState){
+      this.perfumeState.timer-=dt;
+      if(this.perfumeState.timer<=0){
+        this.perfumeState=null;
+        this.dashFlash=0;
+        this.dashCooldown=5;
+      }
+    }
     if(this.healing){if(len>.1||this.health!==1||this.vault||this.dashRemaining>0){this.healing=false;this.healProgress=0;}else{this.healProgress=Math.min(100,this.healProgress+dt*100/3);if(this.healProgress>=100){this.health=2;this.healing=false;this.healProgress=0;this.message='自愈完成';}}}
     const dropping=this.palletVaultLock>0;this.palletVaultLock=Math.max(0,(this.palletVaultLock||0)-dt);
     if(!input.interact&&this.palletVaultLock===0)this.palletReleaseRequired=false;
@@ -92,7 +255,12 @@ export class Game{
     if(this.attack?.phase==='windup'&&this.role!=='hunter'&&this.stun===0&&this.attack.target==='survivor'){const dx=this.player.x-this.hunter.x,dy=this.player.y-this.hunter.y,l=Math.hypot(dx,dy)||1,step=Math.min(Math.max(0,l-1.65),Math.max(0,Math.min(dt,.55-this.attack.elapsed))*11.2);this.attack.angle=Math.atan2(dx,dy);this.hunter.angle=this.attack.angle;this.move(this.hunter,dx/l*step,dy/l*step);}
     this.updateAttack(dt);
     if(this.stun===0&&!this.attack&&this.role!=='hunter'){const pallet=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);if(pallet){this.hunter.angle=Math.atan2(pallet.x-this.hunter.x,pallet.y-this.hunter.y);this.beginAttack();}else if(d<(this.attackDistance??2.2)&&this.visible()){this.hunter.angle=Math.atan2(this.player.x-this.hunter.x,this.player.y-this.hunter.y);if(this.beginAttack())this.attack.target='survivor';this.attackDistance=1.9+Math.random()*.6;}else{let next=this.path[0]||target;if(distance(next,this.hunter)<1){this.path.shift();next=this.path[0]||target;}const dx=next.x-this.hunter.x,dy=next.y-this.hunter.y,l=Math.hypot(dx,dy)||1;this.move(this.hunter,dx/l*dt*(this.chasing?11.2:6),dy/l*dt*(this.chasing?11.2:6));}}
-    if(this.role==='hunter'&&this.stun===0&&!this.attack){const h=this.hunterInput||{},l=Math.hypot(h.x||0,h.y||0)||1;this.move(this.hunter,(h.x||0)/Math.max(1,l)*11.2*dt,(h.y||0)/Math.max(1,l)*11.2*dt);if(h.dash||h.interact)this.beginAttack();}
+    if(this.role==='hunter'&&this.stun===0&&!this.attack){
+      const h=this.hunterInput||{},l=Math.hypot(h.x||0,h.y||0)||1;
+      this.move(this.hunter,(h.x||0)/Math.max(1,l)*11.2*dt,(h.y||0)/Math.max(1,l)*11.2*dt);
+      if(h.dash)this.beginAttack(false); // Quick light attack
+      else if(h.interact)this.beginAttack(true); // Charged heavy attack (wider reach, longer windup)
+    }
     this.updateFalls(dt);this.separateActors();
     if(this.role==='hunter'&&this.calibration&&this.calibration.elapsed/this.calibration.duration>=.65)this.calibrate();
     if(this.exits.some(e=>e.p>=100&&(this.player.x-e.x)*e.side>-2&&Math.abs(this.player.y-e.y)<7&&(this.player.z||0)<1)){this.status='won';this.message='成功逃离雾港';}if(this.time<=0){this.time=0;this.status='lost';this.message='时间耗尽';}
