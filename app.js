@@ -11,12 +11,25 @@ const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第�
 // LAN Multiplayer Networking State
 let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[];
 function initLANMultiplayer(){
-  const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),inputRoom=$('#lanRoom'),inputName=$('#lanName');
+  const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),inputRoom=$('#lanRoom'),inputName=$('#lanName'),inputHost=$('#lanHost');
   const lobby=$('#roomLobby'),startBtn=$('#startLanMatchBtn'),leaveBtn=$('#leaveRoomBtn'),botsCheck=$('#fillBotsCheck');
   if(!statusEl||!btn)return;
 
-  // Retrieve remembered nickname
-  try{const saved=localStorage.getItem('fogbound_nickname');if(saved&&inputName)inputName.value=saved;}catch{}
+  // Retrieve remembered nickname & host
+  try{
+    const savedName=localStorage.getItem('fogbound_nickname');if(savedName&&inputName)inputName.value=savedName;
+    const savedHost=localStorage.getItem('fogbound_host');
+    if(inputHost){
+      inputHost.value=savedHost||(location.hostname==='localhost'||location.hostname==='127.0.0.1'?'localhost:5173':'');
+    }
+  }catch{}
+
+  // Automatically fetch host LAN IP if connected to local Node server
+  fetch('/api/lan-info').then(r=>r.json()).then(data=>{
+    if(data&&data.ip&&inputHost&&!inputHost.value){
+      inputHost.value=`${data.ip}:${data.port||5173}`;
+    }
+  }).catch(()=>{});
 
   btn.onclick=()=>{
     const nickname=(inputName.value||'').trim();
@@ -26,14 +39,37 @@ function initLANMultiplayer(){
       return;
     }
     try{localStorage.setItem('fogbound_nickname',nickname);}catch{}
+
+    let targetHost=(inputHost?.value||'').trim();
+    if(!targetHost){
+      if(location.hostname.endsWith('github.io')){
+        alert('你当前正在 GitHub Pages 在线网页浏览。局域网联机需要在局域网中一台电脑上运行 node server.js，并在地址栏输入该电脑的 IP:5173 即可一键联机！');
+        targetHost=prompt('请输入运行 node server.js 电脑的局域网 IP:端口 (例如 192.168.1.5:5173)：')||'';
+        if(!targetHost)return;
+        inputHost.value=targetHost;
+      }else{
+        targetHost=location.host||'localhost:5173';
+      }
+    }
+    try{localStorage.setItem('fogbound_host',targetHost);}catch{}
+
     const room=(inputRoom.value||'8888').trim().toUpperCase().slice(0,6);
     if(lanSocket&&lanSocket.readyState===WebSocket.OPEN){
       lanSocket.send(JSON.stringify({type:'join_room',room,nickname,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
       return;
     }
+
     statusEl.textContent='⏳ 正在连接...';
-    const proto=location.protocol==='https:'?'wss:':'ws:';
-    lanSocket=new WebSocket(`${proto}//${location.host}`);
+    try{
+      const cleanHost=targetHost.replace(/^https?:\/\//,'').replace(/^wss?:\/\//,'');
+      const wsUrl=`ws://${cleanHost}`;
+      lanSocket=new WebSocket(wsUrl);
+    }catch(err){
+      statusEl.textContent='✖ 联机地址格式错误';
+      alert('联机地址格式错误，请输入 IP:端口 (例如 192.168.1.5:5173)');
+      return;
+    }
+
     lanSocket.onopen=()=>{
       statusEl.textContent='✔ 已连入局域网';
       lanSocket.send(JSON.stringify({type:'join_room',room,nickname,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
@@ -63,9 +99,12 @@ function initLANMultiplayer(){
         }
       }catch(err){}
     };
-    lanSocket.onerror=()=>statusEl.textContent='✖ 局域网未启动(单机模式)';
+    lanSocket.onerror=()=>{
+      statusEl.textContent='✖ 无法连接到服务器';
+      alert(`无法连接到局域网联机服务 [${targetHost}]！\n\n请确保：\n1. 电脑终端已运行 npm start\n2. 手机与电脑连入同一个 Wi-Fi 网络\n3. 输入的 IP 地址正确（可在电脑端终端或通过 ipconfig 查看）`);
+    };
     lanSocket.onclose=()=>{
-      statusEl.textContent='● 单人模式';
+      statusEl.textContent='● 未连接';
       lanSocket=null;lobby.hidden=true;$('#start').hidden=false;
     };
   };
