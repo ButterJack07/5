@@ -116,7 +116,44 @@ function buildOutdoorDetailing(T,scene){
   }
 }
 for(let i=0;i<160;i++){const x=(i*31.13)%SIZE+2,z=(i*17.43)%SIZE+2;if(roofs.some(r=>Math.abs(x-r.x)<r.w/2+2&&Math.abs(z-r.y)<r.d/2+2))continue;mesh(new T.ConeGeometry(.25,.7,3),0x61714b,x,.3,z);}
-const generators=game.generators.map(g=>{let group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);cube(0,1,0,3,2,2.4,0x8d7250,group);cube(0,2.4,0,1.7,.8,1.6,0x343f3b,group);const lamp=cube(0,2.6,-.85,1,.25,.1,0xecb471,group);return lamp;});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
+// High-fidelity Cipher Machine model: typewriter keyboard, mechanical drums, and tall wooden antenna mast with bright beacon
+function buildCipherModel(T,g,group){
+  const metal=new T.MeshStandardMaterial({color:0x36433e,metalness:.6,roughness:.4}),wood=new T.MeshStandardMaterial({color:0x523d2a,roughness:.85}),brass=new T.MeshStandardMaterial({color:0xbfa054,metalness:.7,roughness:.35}),glowMat=new T.MeshStandardMaterial({color:0xffcc00,emissive:0xffaa00,emissiveIntensity:2.4});
+  // Wooden desk foundation
+  cube(0,.75,0,3.2,1.5,2.4,0x523d2a,group);
+  cube(0,.05,0,3.4,.1,2.6,0x38281a,group);
+  // Machine iron casing and typewriting table
+  cube(0,1.75,-.2,2.8,.5,1.8,0x2c3834,group);
+  cube(0,1.95,.4,2.2,.15,.8,0x1a211f,group); // keyboard bed
+  // Cylindrical decoding rotators
+  for(let x=-.8;x<=.8;x+=.8){
+    const drum=new T.Mesh(new T.CylinderGeometry(.35,.35,1.2,12),brass);
+    drum.rotation.z=Math.PI/2;drum.position.set(x,2.2,-.3);drum.castShadow=true;group.add(drum);
+  }
+  // Tall wooden telephone/antenna pole
+  const pole=new T.Mesh(new T.CylinderGeometry(.12,.18,7.5,7),wood);
+  pole.position.set(-1.25,3.75,-.85);pole.castShadow=true;group.add(pole);
+  // Crossbar on the pole
+  const cross=new T.Mesh(new T.BoxGeometry(1.6,.12,.12),wood);
+  cross.position.set(-1.25,7.1,-.85);group.add(cross);
+  // Glass insulators on crossbar
+  for(const ox of [-.6,.6]){
+    const ins=new T.Mesh(new T.CylinderGeometry(.06,.06,.22,6),metal);
+    ins.position.set(-1.25+ox,7.25,-.85);group.add(ins);
+  }
+  // High-mounted beacon lamp (glowing bright yellow when unfixed, bright green when finished)
+  const lampBeacon=new T.Mesh(new T.SphereGeometry(.32,10,8),glowMat);
+  lampBeacon.position.set(-1.25,7.5,-.85);group.add(lampBeacon);
+  const beaconLight=new T.PointLight(0xffaa00,4,16,2);
+  beaconLight.position.set(-1.25,7.6,-.85);group.add(beaconLight);
+  group.userData.lampBeacon=lampBeacon;
+  group.userData.beaconLight=beaconLight;
+  return lampBeacon;
+}
+const generators=game.generators.map(g=>{
+  const group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);
+  return buildCipherModel(T,g,group);
+});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
 function character(color,hunter){
   const group=new T.Group();scene.add(group);
   const body=cube(0,1.9,0,1.1,1.3,.7,color,group);
@@ -134,7 +171,18 @@ function character(color,hunter){
   }
   return {group,legs,armL,armR};
 }const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
-function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}player.group.children[0].material.color.setHex(game.character.color);generators.forEach((m,i)=>{m.material.color.set(game.generators[i].p>=100?0xd6ed91:0xecb471);m.material.emissive.copy(m.material.color);m.material.emissiveIntensity=.5;});pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
+function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}    player.group.children[0].material.color.setHex(game.character.color);
+    generators.forEach((m,i)=>{
+      const done=game.generators[i].p>=100;
+      m.material.color.set(done?0x68f070:0xffcc00);
+      m.material.emissive.set(done?0x26c030:0xffaa00);
+      m.material.emissiveIntensity=done?1.8:2.6;
+      const group=m.parent;
+      if(group&&group.userData.beaconLight){
+        group.userData.beaconLight.color.set(done?0x40e050:0xffaa00);
+        group.userData.beaconLight.intensity=done?3.5:5.5;
+      }
+    });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
 let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
 let previousMessage='',messageUntil=0;
 function updateHUD(){
