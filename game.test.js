@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {Game} from './game.js';
+const idle={x:0,y:0,sprint:false,interact:false};
+test('ready state does not run and reset restores game',()=>{const g=new Game();g.update(1,idle);assert.equal(g.time,240);g.start();g.update(1,idle);assert.equal(g.time,239);g.reset();assert.equal(g.health,2);assert.equal(g.status,'ready');});
+test('repair is continuous, requires proximity and stationary input',()=>{const g=new Game();g.start();g.player={x:20,y:44};g.update(1,{...idle,interact:true});assert.equal(g.generators[0].p,14);g.update(.1,{...idle,x:1,interact:true});assert.equal(g.generators[0].p,14);g.player={x:50,y:80};g.update(1,{...idle,interact:true});assert.equal(g.generators[0].p,14);});
+test('pallet stuns hunter and creates collision',()=>{const g=new Game();g.start();g.player={x:45,y:45};g.hunter={x:45,y:48};g.update(.01,{...idle,interact:true});assert.equal(g.pallets[0].down,true);assert.ok(g.stun>2);assert.equal(g.blocked(45,46),true);});
+test('two hits end game, invulnerability prevents immediate second hit',()=>{const g=new Game();g.start();g.player={x:50,y:50};g.hunter={x:50,y:50};g.update(.01,idle);assert.equal(g.health,1);g.update(.01,idle);assert.equal(g.health,1);g.invincible=0;g.update(.01,idle);assert.equal(g.status,'lost');});
+test('powered generators unlock exit and escape completes game',()=>{const g=new Game();g.start();g.generators.forEach(m=>m.p=100);g.player={x:95,y:50};g.exit.p=99;g.update(.1,{...idle,interact:true});assert.equal(g.status,'won');});
+test('timer expiration ends game',()=>{const g=new Game();g.start();g.time=.01;g.update(.1,idle);assert.equal(g.status,'lost');assert.equal(g.time,0);});
