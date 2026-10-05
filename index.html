@@ -3,7 +3,7 @@
 <body><main id="stage" tabindex="-1"><canvas id="flat"></canvas><div id="webgl"></div>
 <div class="hud"><span id="count">电力 0 / 3</span><span id="time">04:00</span></div>
 <button id="settingsButton" aria-label="打开游戏设置" aria-expanded="false">☰</button>
-<section id="settings" hidden><h2>演练设置</h2><nav aria-label="游戏视角"><button data-view="iso" class="selected">2.5D 斜视</button><button data-view="third">3D 第三人称</button></nav><p id="cameraHint">可随时切换视角，保留对局</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · E 交互 · Q 角色技能<br>受伤后按住 E 包扎 · 点击密码机旁按钮破译<br>翻窗 1 秒，随后 2 秒 +30% 加速 · 放板后可翻板</small></section>
+<section id="settings" hidden><h2>演练设置</h2><p id="cameraHint">3D 近距跟随 · 拖动画面左右、上下调整镜头</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · E 交互 · Q 角色技能<br>医生按 Q 自愈 · 点击密码机旁按钮破译<br>上下视角范围：向上 17° / 向下 46°</small></section>
 <div id="message" role="status"></div>
 <section class="survivor"><div class="portrait">◇</div><div><h3><b id="characterName">林间信使</b> <span id="health">健康</span></h3><label>状态 <b id="energy">普通移动</b></label><div class="track" hidden><i id="energybar"></i></div></div></section>
 <div class="threat"><span id="threat">追猎者巡逻中</span></div>
