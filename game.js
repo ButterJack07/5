@@ -132,8 +132,12 @@ export class Game{
     if(Math.abs((target.z||0)-(this.hunter.z||0))>1.5)return false;
     const dx=target.x-this.hunter.x,dy=target.y-this.hunter.y,d=Math.hypot(dx,dy);
     const reach=this.attack?.charged?6.2:(this.hunterId==='ripper'?5.5:4.8);
-    const spread=this.attack?.charged?.4:.25;
-    return d<reach&&(d<.8||(dx*Math.sin(this.attack.angle)+dy*Math.cos(this.attack.angle))/d>spread);
+    if(d<.00001)return true;
+    const angle=this.attack?.angle??this.hunter.angle??0;
+    const forward=(dx*Math.sin(angle)+dy*Math.cos(angle))/d;
+    if(forward<-.000001)return false;
+    const extra=forward>=Math.SQRT1_2-.000001?.8:0;
+    return d<=reach+extra;
   }
   updateAttack(dt){
     if(!this.attack)return;
