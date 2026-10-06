@@ -161,7 +161,7 @@ export class Game{
             hitTarget.shield=0;
             this.message='役鸟抵挡攻击！';
           }else{
-            hitTarget.health=(hitTarget===this.player?this.health:(hitTarget.health??2))-1;
+            hitTarget.health=Math.max(0,(hitTarget===this.player?this.health:(hitTarget.health??2))-(this.detention>0?2:1));
             if(hitTarget===this.player){this.health=hitTarget.health;this.invincible=3;this.vault=null;this.dashRemaining=0;}
             hitTarget.vault=null;
             hitTarget.dashRemaining=0;
@@ -185,7 +185,7 @@ export class Game{
   selectCharacter(id){if(this.status!=='ready'||!characters.some(c=>c.id===id))return false;this.characterId=id;return true;}
   resetState(){this.player={x:48,y:73,angle:0};this.hunter={x:12,y:20,angle:0};this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;}
   start(){if(this.status==='ready'){this.configureMap();this.palletVaultLock=0;this.palletReleaseRequired=false;this.healing=false;this.healProgress=0;this.time=300;this.attack=null;this.status='playing';this.message='破译三台密码机，开启任意逃生门';}}
-  get powered(){return this.generators.filter(g=>g.p>=100).length;}
+  get powered(){const n=this.generators.filter(g=>g.p>=100).length;return this.generators.length>=7?Math.min(3,n*3/5):n;}
   startDecode(g){if(this.status!=='playing'||this.vault||this.dashRemaining>0||!this.generators.includes(g)||g.p>=100||distance(this.player,g)>=6)return false;if(this.decoding===g){this.stopDecode();return true;}this.decoding=g;this.calibration=null;this.nextCalibration=3+Math.random()*2;this.message='正在破译 · 移动可退出';return true;}
   stopDecode(){this.decoding=null;this.calibration=null;if(this.healing){this.healing=false;this.healProgress=0;}}
   failCalibration(){if(!this.calibration||!this.decoding)return;this.decoding.p=Math.max(0,this.decoding.p-10);this.alert=8;this.message='校准失败！追猎者听到了声响';this.calibration=null;this.nextCalibration=3+Math.random()*3;}

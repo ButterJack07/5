@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {networkInterfaces} from 'node:os';
 import {SharedMatch} from './match.js';
 
-const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js','hunter-skills.js','hunter-model.js','survivor-model.js']);
+const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js','hunter-skills.js','hunter-model.js','survivor-model.js','standard-rules.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
@@ -166,7 +166,7 @@ class WSServer {
       if(!survivors.length||hunters.length>1||survivors.length>4){this.send(client,{type:'error',message:'需要 1～4 名求生者，最多 1 名监管者'});return;}
       r.matchStarted=true;
       const bots=r.bots.filter(i=>!players.some(p=>p.slot===i)).map(i=>({id:'bot-slot-'+i,nickname:i===4?'人机监管者':'人机求生者 '+(i+1),role:i===4?'hunter':'survivor',character:i===4?'ripper':'mercenary',bot:true,slot:i}));
-      r.match=new SharedMatch([...players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),...bots],false);
+      r.match=new SharedMatch([...players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),...bots],true);
       this.broadcast(client.room,{
         type:'match_start',
         roster:players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),
