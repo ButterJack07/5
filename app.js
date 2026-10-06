@@ -7,6 +7,7 @@ import {SharedMatch} from './match.js';
 import {chairLocations} from './chairs.js';
 import {renderTeam} from './team-status.js';
 import {createHunterMesh} from './hunter-model.js';
+import {createSurvivorMesh} from './survivor-model.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
@@ -442,21 +443,25 @@ function character(color,hunter){
     group.userData.armR=armR;
   }
   return {group,legs,armL,armR};
-}const player=character(0xafc77d,false),hunter=createHunterMesh(T,game.hunterId);scene.add(hunter.group);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
+}const player=createSurvivorMesh(T,game.characterId),hunter=createHunterMesh(T,game.hunterId);scene.add(player.group);scene.add(hunter.group);player.group.scale.setScalar(0.8);hunter.group.scale.setScalar(0.72);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
 function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}    // Render all other survivors in the same map (human peers and AI bots)
     if(game.survivors){
       for(const s of game.survivors){
         if(s===game.player)continue;
         let sMesh=survivorMeshes.get(s.id||s.nickname);
         if(!sMesh&&three){
-          const group=three.player.group.clone(true);group.visible=true;group.traverse(o=>{if(o.material)o.material=o.material.clone();});three.scene.add(group);sMesh={group,legs:[group.children[2],group.children[3]]};
+          const pObj=createSurvivorMesh(three.T,s.character||'mercenary');
+          pObj.group.visible=true;
+          pObj.group.scale.setScalar(0.8);
+          three.scene.add(pObj.group);
           const cv=document.createElement('canvas');cv.width=256;cv.height=64;
           const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
           cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle=s.isAi?'#adb5a8':'#d6ed91';
           cx.fillText(s.nickname||'求生者',128,42);
           const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
-          sp.scale.set(3,.75,1);sp.position.set(0,3.8,0);
-          sMesh.group.add(sp);
+          sp.scale.set(3,.75,1);sp.position.set(0,3.2,0);
+          pObj.group.add(sp);
+          sMesh={group:pObj.group,legs:pObj.legs,survivorObj:pObj};
           survivorMeshes.set(s.id||s.nickname,sMesh);
         }
         if(sMesh){
@@ -474,7 +479,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
       }
     }
 
-    player.group.children[0].material.color.setHex(game.character.color);
+    if(three.player.updateCharacter)three.player.updateCharacter(game.characterId);
     generators.forEach((m,i)=>{
       const done=game.generators[i].p>=100;
       m.material.color.set(done?0x68f070:0xffcc00);
@@ -574,7 +579,9 @@ function updateHUD(){
   $('.threat').hidden=!$('#threat').textContent||game.status!=='playing';
   if(three){
     three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);
-    three.hunter.group.position.y=game.hunter.z||0;three.hunter.group.scale.setScalar(1.42);
+    three.player.group.scale.setScalar(0.8);
+    three.hunter.group.position.y=game.hunter.z||0;
+    three.hunter.group.scale.setScalar(0.72);
     if(three.hunter.group.userData.skinId!==game.hunterId)three.hunter.updateSkin(game.hunterId);
     three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
     three.pallets.forEach((m,i)=>{
@@ -614,6 +621,6 @@ function updateHUD(){
   if(sharedMatch&&chairState&&!chairState.result){const c=chairState.chairs.find(c=>c.occupant&&distance(c,game.player)<3),rescue=chairState.rescues.find(r=>r.id===myLanId);if(game.role==='survivor'&&c&&game.health>0){$('#interact').textContent='救人';$('#prompt').textContent=rescue?'救援中 '+Math.floor(rescue.time*100)+'% · 受击会震慑':'点击 E / 交互救人（1秒）';$('.bottom').hidden=false;}if(game.role==='hunter'){const near=chairLocations.some(c=>distance(c,game.hunter)<3);$('#interact').textContent=chairState.carried&&near?'挂椅':chairState.carried?'牵气球':'牵起';}}
   if(!sharedMatch&&['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
 }
-function updateCamera(){const {T,camera,scene}=three,a=game.controlled,target=new T.Vector3(a.x,(a.z||0)+2.25,a.y),length=5.2,offset=new T.Vector3(Math.sin(cameraAngle)*Math.cos(cameraPitch)*length,Math.sin(cameraPitch)*length,Math.cos(cameraAngle)*Math.cos(cameraPitch)*length),direction=offset.clone().normalize();const ray=new T.Raycaster(target,direction,.1,length+.3);const blockers=scene.children.filter(m=>m.isMesh&&m.visible&&!['hunterRedLight','skillSmoke'].includes(m.name)&&!three.pallets.includes(m)&&m!==three.gate&&m.material?.opacity>=.9);const hit=ray.intersectObjects(blockers,false)[0];const distance=hit?Math.max(.45,Math.min(length,hit.distance-.3)):length;camera.position.copy(target).addScaledVector(direction,distance);camera.position.y=Math.max((a.z||0)+.3,camera.position.y);camera.lookAt(target);}
+function updateCamera(){const {T,camera,scene}=three,a=game.controlled;const targetY=game.role==='hunter'?(a.z||0)+1.65:(a.z||0)+1.25;const target=new T.Vector3(a.x,targetY,a.y);const length=game.role==='hunter'?4.8:4.2;const offset=new T.Vector3(Math.sin(cameraAngle)*Math.cos(cameraPitch)*length,Math.sin(cameraPitch)*length,Math.cos(cameraAngle)*Math.cos(cameraPitch)*length);const direction=offset.clone().normalize();const ray=new T.Raycaster(target,direction,.1,length+.3);const blockers=scene.children.filter(m=>m.isMesh&&m.visible&&!['hunterRedLight','skillSmoke'].includes(m.name)&&!three.pallets.includes(m)&&m!==three.gate&&m.material?.opacity>=.9);const hit=ray.intersectObjects(blockers,false)[0];const distance=hit?Math.max(.45,Math.min(length,hit.distance-.3)):length;camera.position.copy(target).addScaledVector(direction,distance);camera.position.y=Math.max((a.z||0)+.3,camera.position.y);camera.lookAt(target);}
 async function loadGame(){canvas.style.display='none';$('#webgl').style.display='block';$('#start').disabled=true;$('#start').textContent='正在加载 3D…';try{await setupThree();$('#start').disabled=false;$('#start').textContent='开始演练';}catch(error){console.error(error);$('#overlay p:not(.eyebrow)').textContent='3D 加载失败，请检查网络或浏览器 WebGL 支持。';$('#start').textContent='重试加载';$('#start').disabled=false;$('#start').onclick=async()=>{await loadGame();if(three)$('#start').onclick=begin;};}}
 resize();loadGame();requestAnimationFrame(frame);
