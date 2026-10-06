@@ -11,6 +11,7 @@ const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第�
 // LAN Multiplayer Networking State
 let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[];
 let sharedMatch=false;
+let roomPhase='seats';
 function sendAction(action,index){if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'action',action,index}));}
 const localDecode=game.startDecode.bind(game),localCalibrate=game.calibrate.bind(game);game.startDecode=g=>sharedMatch?sendAction('decode',game.generators.indexOf(g)):localDecode(g);game.calibrate=()=>sharedMatch?sendAction('calibrate'):localCalibrate();
 function initLANMultiplayer(){
@@ -93,7 +94,7 @@ function initLANMultiplayer(){
         else if(msg.type==='room_joined'||msg.type==='roster_update'){
           if(msg.type==='room_joined'){myLanId=msg.yourId;lanRoomCode=msg.room;}
           lanRoster=msg.roster||[];
-          renderLobby(lanRoster,msg.fillBots);
+          roomPhase=msg.phase||'seats';renderLobby(lanRoster,msg.fillBots,msg.bots||[]);
         }else if(msg.type==='match_start'){
           lobby.hidden=true;
           beginLANMatch(msg);
@@ -130,7 +131,7 @@ function initLANMultiplayer(){
 
   startBtn.onclick=()=>{
     if(lanSocket&&lanSocket.readyState===WebSocket.OPEN){
-      lanSocket.send(JSON.stringify({type:'start_match'}));
+      lanSocket.send(JSON.stringify({type:roomPhase==='seats'?'choose_characters':'start_match'}));
     }
   };
 
@@ -140,7 +141,7 @@ function initLANMultiplayer(){
 }
 function renderRooms(rooms){const root=$('#roomsList');root.replaceChildren();if(!rooms.length){root.textContent='暂无房间，点击创建房间邀请好友';return;}for(const r of rooms){const row=document.createElement('button');row.className='hallRoom';row.disabled=r.started||r.count>=r.capacity;row.textContent=`${r.name} · ${r.code} · ${r.count}/${r.capacity} · ${r.started?'对局中':'点击加入'}`;row.onclick=()=>{$('#lanRoom').value=r.code;$('#lanJoinBtn').onclick();};root.appendChild(row);}}
 
-function renderLobby(roster,fillBots){
+function renderLobby(roster,fillBots,bots=[]){
   const lobby=$('#roomLobby');
   if(!lobby)return;
   lobby.hidden=false;
@@ -152,17 +153,21 @@ function renderLobby(roster,fillBots){
 
   const rosterEl=$('#lobbyRoster');
   rosterEl.innerHTML='';
-  roster.forEach(p=>{
-    const card=document.createElement('div');
+  for(let slot=0;slot<5;slot++){
+    const p=roster.find(p=>p.slot===slot)||{nickname:bots.includes(slot)?'人机':'空位',role:slot===4?'hunter':'survivor',character:''};
+    const card=document.createElement('button');card.type='button';
     card.className='playerCard'+(p.id===myLanId?' isMe':'');
     const isHunter=p.role==='hunter';
     const name=document.createElement('span');name.textContent=p.nickname+(p.isHost?' (房主)':'')+(p.id===myLanId?' [你]':'');const role=document.createElement('span');role.className='pRole '+(isHunter?'hunter':'survivor');role.textContent=(isHunter?'监管者':'求生者')+': '+p.character;card.append(name,role);
     rosterEl.appendChild(card);
-  });
+    card.onclick=()=>{if(roomPhase!=='seats')return;if(p.id&&p.id!==myLanId)return;lanSocket.send(JSON.stringify({type:'select_slot',slot}));};
+    if(!p.id&&roster.find(p=>p.id===myLanId)?.isHost){const toggle=document.createElement('button');toggle.textContent=bots.includes(slot)?'取消人机':'填充人机';toggle.onclick=()=>lanSocket.send(JSON.stringify({type:'slot_bot',slot}));rosterEl.appendChild(toggle);}
+  }
 
   const me=roster.find(p=>p.id===myLanId);
   const isHost=me?.isHost;
   $('#fillBotsCheck').disabled=!isHost;
+  $('.lobbyOptions').hidden=true;$('#roleSelect').hidden=true;$('#characterSelect').hidden=roomPhase!=='characters';$('#skillDescription').hidden=roomPhase!=='characters';if(me){game.role=me.role;document.querySelectorAll('[data-role]').forEach(b=>b.classList.toggle('selected',b.dataset.role===me.role));characterMenu();}
   const startBtn=$('#startLanMatchBtn');
   if(roster.length<2){
     startBtn.disabled=true;
@@ -172,7 +177,7 @@ function renderLobby(roster,fillBots){
     startBtn.textContent='等待房主开启对局...';
   }else{
     startBtn.disabled=false;
-    startBtn.textContent='开始联机对局 ↗';
+    startBtn.textContent=roomPhase==='seats'?'进入选角阶段':'确认角色并开始对局';
   }
 }
 
@@ -182,7 +187,7 @@ function beginLANMatch(config){
   $('#overlay').style.display='none';
   game.reset();
   game.start();
-  sharedMatch=true;settings(false);clearInput();return;
+  sharedMatch=true;settings(false);clearInput();survivorMeshes.forEach(m=>three?.scene.remove(m.group));survivorMeshes.clear();return;
 
   // Clear previous mesh instances
   survivorMeshes.forEach(m=>three?.scene.remove(m.group));
@@ -431,7 +436,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
         if(s===game.player)continue;
         let sMesh=survivorMeshes.get(s.id||s.nickname);
         if(!sMesh&&three){
-          const group=three.player.group.clone(true);three.scene.add(group);sMesh={group,legs:[group.children[2],group.children[3]]};
+          const group=three.player.group.clone(true);group.visible=true;group.traverse(o=>{if(o.material)o.material=o.material.clone();});three.scene.add(group);sMesh={group,legs:[group.children[2],group.children[3]]};
           const cv=document.createElement('canvas');cv.width=256;cv.height=64;
           const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
           cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle=s.isAi?'#adb5a8':'#d6ed91';
@@ -447,7 +452,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
           const moving=(Math.hypot(s.x-(s.lastX||s.x),s.y-(s.lastY||s.y))>0.005);
           s.lastX=s.x;s.lastY=s.y;
           sMesh.legs.forEach((l,i)=>{l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.55:0;});
-          if((s.health||2)<=0){
+          sMesh.group.visible=true;if((s.health??2)<=0){
             sMesh.group.rotation.x=Math.PI/2;sMesh.group.position.y=.3;
           }else{
             sMesh.group.rotation.x=0;

@@ -15,12 +15,13 @@ test('real websocket lobby creates lists joins switches role and starts as host'
     a.send({type:'create_room',nickname:'Alice',role:'survivor',name:'Test room'});
     const joined=await a.wait('room_joined');assert.ok(joined.room);assert.equal(joined.roster[0].isHost,true);
     b.send({type:'list_rooms'});let list=await b.wait('rooms_list');if(!list.rooms.length)list=await b.wait('rooms_list');assert.equal(list.rooms[0].code,joined.room);
-    a.send({type:'start_match'});assert.match((await a.wait('error')).message,/2/);
+    a.send({type:'choose_characters'});assert.match((await a.wait('error')).message,/2/);
     b.send({type:'join_room',room:joined.room,nickname:'Bob',role:'survivor'});assert.equal((await b.wait('room_joined')).roster.length,2);
     b.send({type:'update_profile',role:'hunter',character:'ripper'});
     let roster;do{roster=await b.wait('roster_update');}while(!roster.roster.some(p=>p.role==='hunter'));
     assert.equal(roster.roster.filter(p=>p.role==='hunter').length,1);
-    a.send({type:'toggle_bots',fillBots:false});a.send({type:'start_match'});
+    a.send({type:'slot_bot',slot:2});let slots;do{slots=await a.wait('roster_update');}while(!slots.bots?.includes(2));assert.equal(slots.phase,'seats');
+    a.send({type:'slot_bot',slot:2});a.send({type:'choose_characters'});a.send({type:'start_match'});
     const match=await b.wait('match_start');assert.equal(match.needsAiHunter,false);assert.equal(match.needsAiSurvivors,0);assert.equal(match.roster.length,2);
     const firstA=await a.wait('world_state'),firstB=await b.wait('world_state');assert.deepEqual(firstA.state.generators,firstB.state.generators);assert.deepEqual(firstA.state.actors.map(p=>p.id),firstB.state.actors.map(p=>p.id));
     const original=firstA.state.actors.find(p=>p.id===joined.yourId).position.x;

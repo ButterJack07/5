@@ -53,7 +53,8 @@ class WSServer {
       if(c!==excludeClient)this.send(c,data);
     }
   }
-  roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:i===0}));}
+  roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,slot:p.slot,isHost:i===0}));}
+  roomState(code){const r=this.rooms.get(code);if(!r)return;this.broadcast(code,{type:'roster_update',roster:this.roster(r),phase:r.phase||'seats',bots:r.bots||[],fillBots:false});}
   listRooms(){return [...this.rooms].map(([code,r])=>({code,name:r.name||code,count:r.players.size,started:r.matchStarted,host:this.roster(r)[0]?.nickname||'',capacity:5}));}
   notifyLobby(){const data={type:'rooms_list',rooms:this.listRooms()};for(const c of this.clients)this.send(c,data);}
   leave(client){const code=client.room,r=this.rooms.get(code);client.room=null;if(!r)return;r.players.delete(client);if(!r.players.size)this.rooms.delete(code);else{this.broadcast(code,{type:'player_left',id:client.id});this.broadcast(code,{type:'roster_update',roster:this.roster(r),fillBots:r.fillBots});}this.notifyLobby();}
@@ -111,27 +112,35 @@ class WSServer {
       const role=msg.role==='hunter'?'hunter':'survivor';
       if(existing&&role==='hunter'&&[...existing.players].some(p=>p!==client&&p.role==='hunter')){this.send(client,{type:'error',message:'监管者位置已有人'});return;}
       this.leave(client);
-      if(!this.rooms.has(roomCode))this.rooms.set(roomCode,{name:String(msg.name||nickname+'的房间').slice(0,24),players:new Set(),fillBots:true,matchStarted:false});
+      if(!this.rooms.has(roomCode))this.rooms.set(roomCode,{name:String(msg.name||nickname+'的房间').slice(0,24),players:new Set(),fillBots:false,bots:[],phase:'seats',matchStarted:false});
       const r=this.rooms.get(roomCode);
       client.room=roomCode;
       client.nickname=nickname;
       client.role=role;
+      client.slot=role==='hunter'?4:[0,1,2,3].find(i=>![...r.players].some(p=>p.slot===i));
+      if(client.slot===undefined){this.send(client,{type:'error',message:'求生者位置已满'});return;}
+      r.bots=r.bots.filter(i=>i!==client.slot);
       client.character=msg.character||'mercenary';
       r.players.add(client);
       const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
       this.send(client,{type:'room_joined',room:roomCode,yourId:client.id,roster:getRoster(),fillBots:r.fillBots});
       this.broadcast(roomCode,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
       this.notifyLobby();
+      this.roomState(roomCode);
+    }else if(msg.type==='select_slot'&&client.room){const r=this.rooms.get(client.room),slot=Number(msg.slot);if(!r||r.phase!=='seats'||!Number.isInteger(slot)||slot<0||slot>4)return;if([...r.players].some(p=>p!==client&&p.slot===slot)){this.send(client,{type:'error',message:'该位置已有人'});return;}client.slot=slot;client.role=slot===4?'hunter':'survivor';client.character=slot===4?'ripper':'mercenary';r.bots=r.bots.filter(i=>i!==slot);this.roomState(client.room);
+    }else if(msg.type==='slot_bot'&&client.room){const r=this.rooms.get(client.room),slot=Number(msg.slot);if(!r||[...r.players][0]!==client||r.phase!=='seats'||!Number.isInteger(slot)||slot<0||slot>4||[...r.players].some(p=>p.slot===slot))return;r.bots=r.bots.includes(slot)?r.bots.filter(i=>i!==slot):[...r.bots,slot];this.roomState(client.room);
+    }else if(msg.type==='choose_characters'&&client.room){const r=this.rooms.get(client.room);if(!r||[...r.players][0]!==client||r.phase!=='seats')return;if(r.players.size<2){this.send(client,{type:'error',message:'至少需要 2 名真人'});return;}if(![...r.players].some(p=>p.role==='survivor')){this.send(client,{type:'error',message:'需要求生者'});return;}r.phase='characters';this.roomState(client.room);
     }else if(msg.type==='update_profile'&&client.room){
       const r=this.rooms.get(client.room);
       if(!r)return;
       if(r.matchStarted)return;
       if(msg.role==='hunter'&&[...r.players].some(p=>p!==client&&p.role==='hunter')){this.send(client,{type:'error',message:'监管者位置已有人'});return;}
       if(msg.nickname)client.nickname=String(msg.nickname).slice(0,10);
-      if(['hunter','survivor'].includes(msg.role))client.role=msg.role;
+      if(r.phase==='seats'&&['hunter','survivor'].includes(msg.role)){const slot=msg.role==='hunter'?4:[0,1,2,3].find(i=>![...r.players].some(p=>p!==client&&p.slot===i));if(slot!==undefined){client.slot=slot;client.role=msg.role;}}
       if(msg.character)client.character=msg.character;
       const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
       this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+      this.roomState(client.room);
     }else if(msg.type==='toggle_bots'&&client.room){
       const r=this.rooms.get(client.room);
       if(!r)return;
@@ -143,6 +152,7 @@ class WSServer {
       const r=this.rooms.get(client.room);
       if(!r)return;
       if([...r.players][0]!==client||r.matchStarted)return;
+      if(r.phase!=='characters'){this.send(client,{type:'error',message:'请先进入选角阶段'});return;}
       const players=Array.from(r.players);
       const survivors=players.filter(p=>p.role==='survivor');
       const hunters=players.filter(p=>p.role==='hunter');
@@ -153,7 +163,8 @@ class WSServer {
       }
       if(!survivors.length||hunters.length>1||survivors.length>4){this.send(client,{type:'error',message:'需要 1～4 名求生者，最多 1 名监管者'});return;}
       r.matchStarted=true;
-      r.match=new SharedMatch(players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),r.fillBots);
+      const bots=r.bots.filter(i=>!players.some(p=>p.slot===i)).map(i=>({id:'bot-slot-'+i,nickname:i===4?'人机监管者':'人机求生者 '+(i+1),role:i===4?'hunter':'survivor',character:i===4?'ripper':'mercenary',bot:true,slot:i}));
+      r.match=new SharedMatch([...players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),...bots],false);
       this.broadcast(client.room,{
         type:'match_start',
         roster:players.map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character})),
