@@ -67,4 +67,10 @@ test('creates and switches detailed ID5 style ragdoll models for survivors', asy
   s.animatePose({ health: 1, moving: false, time: 1, seated: true });
   assert.equal(seatedArmBehind, true);
   assert.equal(seatedLegBent, true);
+
+  // Test carried pose on balloons (struggling flail)
+  let carriedFlail = false;
+  s.armL.rotation = { set: (x, y, z) => { if (x < -0.8) carriedFlail = true; } };
+  s.animatePose({ health: 0, moving: true, time: 1, carried: true });
+  assert.equal(carriedFlail, true);
 });

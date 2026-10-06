@@ -444,7 +444,7 @@ function character(color,hunter){
   }
   return {group,legs,armL,armR};
 }const player=createSurvivorMesh(T,game.characterId),hunter=createHunterMesh(T,game.hunterId);scene.add(player.group);scene.add(hunter.group);player.group.scale.setScalar(0.8);hunter.group.scale.setScalar(0.72);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
-function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);if(visual===player&&player.animatePose){const myChair=chairState?.actors?.find(a=>a.id===myLanId);const seated=myChair?.seated!=null;player.animatePose({health:game.health,moving,time,vault:v,sprint:game.dashRemaining>0,seated});}else{visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}}    // Render all other survivors in the same map (human peers and AI bots)
+function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);if(visual===player&&player.animatePose){const myChair=chairState?.actors?.find(a=>a.id===myLanId);const seated=myChair?.seated!=null;const carried=chairState?.carried===myLanId;player.animatePose({health:game.health,moving,time,vault:v,sprint:game.dashRemaining>0,seated,carried});}else{visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}}    // Render all other survivors in the same map (human peers and AI bots)
     if(game.survivors){
       for(const s of game.survivors){
         if(s===game.player)continue;
@@ -472,8 +472,9 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
           sMesh.group.visible=true;
           const peerChair=chairState?.actors?.find(a=>a.id===s.id);
           const seated=peerChair?.seated!=null;
+          const carried=chairState?.carried===s.id;
           if(sMesh.survivorObj&&sMesh.survivorObj.animatePose){
-            sMesh.survivorObj.animatePose({health:s.health??2,moving,time,seated});
+            sMesh.survivorObj.animatePose({health:s.health??2,moving,time,seated,carried});
           }else{
             sMesh.legs.forEach((l,i)=>{l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.55:0;});
             if((s.health??2)<=0){sMesh.group.rotation.x=Math.PI/2;sMesh.group.position.y=.3;}

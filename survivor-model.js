@@ -241,9 +241,30 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     group.userData.charId = charId;
   }
 
-  function animatePose({ health = 2, moving = false, time = 0, vault = null, sprint = false, seated = false }) {
+  function animatePose({ health = 2, moving = false, time = 0, vault = null, sprint = false, seated = false, carried = false }) {
     const { torso, headG, armL, armR, legL, legR } = group.userData;
     if (!torso || !headG || !armL || !armR || !legL || !legR) return;
+
+    if (carried) {
+      // Carried on Balloons (牵气球状态 - 悬吊半空剧烈挣扎、悬空乱蹬、双臂抓挠求生)
+      torso.position.set(0, 1.45, 0);
+      torso.rotation.set(-0.35 + Math.sin(time * 6) * 0.12, 0, Math.cos(time * 6) * 0.15); // suspended tilt & wobble
+      headG.position.set(0, 2.35, 0.12);
+      headG.rotation.set(0.25 + Math.sin(time * 6) * 0.1, 0, Math.sin(time * 6) * 0.12);
+
+      // Legs suspended in mid-air frantically thrashing & kicking to break free
+      legL.position.set(-0.24, 0.48, 0);
+      legR.position.set(0.24, 0.48, 0);
+      legL.rotation.set(0.45 + Math.sin(time * 9) * 0.85, 0, -0.15);
+      legR.rotation.set(0.45 - Math.sin(time * 9) * 0.85, 0, 0.15);
+
+      // Arms reaching out frantically clawing and flailing in the air
+      armL.position.set(-0.55, 1.45, 0.1);
+      armR.position.set(0.55, 1.45, 0.1);
+      armL.rotation.set(-1.1 + Math.sin(time * 7) * 0.4, 0.3, -0.4);
+      armR.rotation.set(-1.1 - Math.cos(time * 7) * 0.4, -0.3, 0.4);
+      return;
+    }
 
     if (seated) {
       // Seated on Rocket Chair: bound with thick ropes, thighs flat on chair base, shins dangling down, hands bound behind chair back
