@@ -1,0 +1,21 @@
+[Unit]
+Description=Fogbound shared multiplayer prototype
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/fogbound
+Environment=PORT=43129
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node /opt/fogbound/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

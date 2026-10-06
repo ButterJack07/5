@@ -10,27 +10,35 @@ const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第�
 
 // LAN Multiplayer Networking State
 let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[];
+let sharedMatch=false;
+function sendAction(action,index){if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'action',action,index}));}
+const localDecode=game.startDecode.bind(game),localCalibrate=game.calibrate.bind(game);game.startDecode=g=>sharedMatch?sendAction('decode',game.generators.indexOf(g)):localDecode(g);game.calibrate=()=>sharedMatch?sendAction('calibrate'):localCalibrate();
 function initLANMultiplayer(){
   const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),inputRoom=$('#lanRoom'),inputName=$('#lanName'),inputHost=$('#lanHost');
   const lobby=$('#roomLobby'),startBtn=$('#startLanMatchBtn'),leaveBtn=$('#leaveRoomBtn'),botsCheck=$('#fillBotsCheck');
   if(!statusEl||!btn)return;
+  const select=$('#serverChoice');select.onchange=()=>{if(select.value==='ali'){location.href='https://momentmap.top/fogbound/';return;}if(select.value==='current')inputHost.value=location.host;else{inputHost.value='';inputHost.focus();}};
+  inputHost.addEventListener('change',()=>{if(select.value==='custom')select.selectedOptions[0].textContent=inputHost.value.trim()||'其他服务器（IP:端口）';});
 
   // Retrieve remembered nickname & host
   try{
     const savedName=localStorage.getItem('fogbound_nickname');if(savedName&&inputName)inputName.value=savedName;
     const savedHost=localStorage.getItem('fogbound_host');
-    if(inputHost){
-      inputHost.value=savedHost||(location.hostname==='localhost'||location.hostname==='127.0.0.1'?'localhost:5173':'');
-    }
+    if(inputHost)inputHost.value=location.hostname.endsWith('github.io')?(savedHost||''):location.host;
   }catch{}
 
   // Automatically fetch host LAN IP if connected to local Node server
-  fetch('/api/lan-info').then(r=>r.json()).then(data=>{
+  fetch(new URL('api/lan-info',location.href)).then(r=>r.json()).then(data=>{
     if(data&&data.ip&&inputHost&&!inputHost.value){
       inputHost.value=`${data.ip}:${data.port||5173}`;
     }
   }).catch(()=>{});
 
+  let pendingAction='list_rooms';
+  $('#lanConnectBtn').onclick=()=>{pendingAction='list_rooms';btn.onclick();};
+  $('#createRoom').onclick=()=>{pendingAction='create_room';btn.onclick();};
+  $('#refreshRooms').onclick=()=>{if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'list_rooms'}));};
+  const sendAction=(nickname,room)=>{if(pendingAction==='list_rooms')lanSocket.send(JSON.stringify({type:'list_rooms'}));else lanSocket.send(JSON.stringify({type:pendingAction,room,name:$('#roomName').value,nickname,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));pendingAction='join_room';};
   btn.onclick=()=>{
     const nickname=(inputName.value||'').trim();
     if(!nickname){
@@ -55,14 +63,16 @@ function initLANMultiplayer(){
 
     const room=(inputRoom.value||'8888').trim().toUpperCase().slice(0,6);
     if(lanSocket&&lanSocket.readyState===WebSocket.OPEN){
-      lanSocket.send(JSON.stringify({type:'join_room',room,nickname,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
+      sendAction(nickname,room);
       return;
     }
 
     statusEl.textContent='⏳ 正在连接...';
     try{
       const cleanHost=targetHost.replace(/^https?:\/\//,'').replace(/^wss?:\/\//,'');
-      const wsUrl=`ws://${cleanHost}`;
+      if(location.protocol==='https:'&&cleanHost!==location.host){statusEl.textContent='请直接打开服务器提供的游戏地址';return;}
+      const path=cleanHost===location.host?new URL('./ws',location.href).pathname:'/ws';
+      const wsUrl=`${location.protocol==='https:'?'wss':'ws'}://${cleanHost}${path}`;
       lanSocket=new WebSocket(wsUrl);
     }catch(err){
       statusEl.textContent='✖ 联机地址格式错误';
@@ -72,12 +82,15 @@ function initLANMultiplayer(){
 
     lanSocket.onopen=()=>{
       statusEl.textContent='✔ 已连入局域网';
-      lanSocket.send(JSON.stringify({type:'join_room',room,nickname,role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));
+      $('#lanHall').hidden=false;sendAction(nickname,room);
     };
     lanSocket.onmessage=e=>{
       try{
         const msg=JSON.parse(e.data);
-        if(msg.type==='room_joined'||msg.type==='roster_update'){
+        if(msg.type==='world_state'){applyWorld(msg.state);}
+        else if(msg.type==='rooms_list'){renderRooms(msg.rooms||[]);}
+        else if(msg.type==='room_left'){lanRoomCode=null;myLanId=null;lobby.hidden=true;$('#lanHall').hidden=false;$('#start').hidden=false;}
+        else if(msg.type==='room_joined'||msg.type==='roster_update'){
           if(msg.type==='room_joined'){myLanId=msg.yourId;lanRoomCode=msg.room;}
           lanRoster=msg.roster||[];
           renderLobby(lanRoster,msg.fillBots);
@@ -85,7 +98,7 @@ function initLANMultiplayer(){
           lobby.hidden=true;
           beginLANMatch(msg);
         }else if(msg.type==='error'){
-          alert(msg.message);
+          $('#hallFeedback').textContent=msg.message;statusEl.textContent=msg.message;
         }else if(msg.type==='player_left'){
           if(lanPeers.has(msg.id)){
             const peer=lanPeers.get(msg.id);
@@ -105,7 +118,7 @@ function initLANMultiplayer(){
     };
     lanSocket.onclose=()=>{
       statusEl.textContent='● 未连接';
-      lanSocket=null;lobby.hidden=true;$('#start').hidden=false;
+      lanSocket=null;sharedMatch=false;game.reset();lobby.hidden=true;$('#start').hidden=false;
     };
   };
 
@@ -122,14 +135,16 @@ function initLANMultiplayer(){
   };
 
   leaveBtn.onclick=()=>{
-    if(lanSocket)lanSocket.close();
+    if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'leave_room'}));
   };
 }
+function renderRooms(rooms){const root=$('#roomsList');root.replaceChildren();if(!rooms.length){root.textContent='暂无房间，点击创建房间邀请好友';return;}for(const r of rooms){const row=document.createElement('button');row.className='hallRoom';row.disabled=r.started||r.count>=r.capacity;row.textContent=`${r.name} · ${r.code} · ${r.count}/${r.capacity} · ${r.started?'对局中':'点击加入'}`;row.onclick=()=>{$('#lanRoom').value=r.code;$('#lanJoinBtn').onclick();};root.appendChild(row);}}
 
 function renderLobby(roster,fillBots){
   const lobby=$('#roomLobby');
   if(!lobby)return;
   lobby.hidden=false;
+  $('#lanHall').hidden=true;
   $('#start').hidden=true; // Hide single player start button when in room lobby
   $('#roomCodeText').textContent=lanRoomCode;
   $('#playerCountText').textContent=`${roster.length}人已连接`;
@@ -141,15 +156,13 @@ function renderLobby(roster,fillBots){
     const card=document.createElement('div');
     card.className='playerCard'+(p.id===myLanId?' isMe':'');
     const isHunter=p.role==='hunter';
-    card.innerHTML=`
-      <span><b>${p.nickname}</b> ${p.isHost?'(房主)':''} ${p.id===myLanId?'<small>[你]</small>':''}</span>
-      <span class="pRole ${isHunter?'hunter':'survivor'}">${isHunter?'监管者':'求生者'}: ${p.character}</span>
-    `;
+    const name=document.createElement('span');name.textContent=p.nickname+(p.isHost?' (房主)':'')+(p.id===myLanId?' [你]':'');const role=document.createElement('span');role.className='pRole '+(isHunter?'hunter':'survivor');role.textContent=(isHunter?'监管者':'求生者')+': '+p.character;card.append(name,role);
     rosterEl.appendChild(card);
   });
 
   const me=roster.find(p=>p.id===myLanId);
   const isHost=me?.isHost;
+  $('#fillBotsCheck').disabled=!isHost;
   const startBtn=$('#startLanMatchBtn');
   if(roster.length<2){
     startBtn.disabled=true;
@@ -163,43 +176,64 @@ function renderLobby(roster,fillBots){
   }
 }
 
+const survivorMeshes=new Map();
+
 function beginLANMatch(config){
   $('#overlay').style.display='none';
   game.reset();
   game.start();
-  // Disable local AI hunter if another player is human hunter
-  const humanHunter=config.roster.find(p=>p.role==='hunter');
-  if(humanHunter&&game.role==='survivor'){
-    // Stop local AI from interfering; human hunter will send position updates
-    game.aiHunterDisabled=true;
+  sharedMatch=true;settings(false);clearInput();return;
+
+  // Clear previous mesh instances
+  survivorMeshes.forEach(m=>three?.scene.remove(m.group));
+  survivorMeshes.clear();
+
+    if(three){
+    // Spawn 3D meshes for all other survivors (human peers and AI bots) in the same map
+    game.survivors.forEach(s=>{
+      if(s===game.player)return; // Local player already has three.player
+      const cObj=character(0x486b56,false);
+      // Billboard nickname tag above head
+      const cv=document.createElement('canvas');cv.width=256;cv.height=64;
+      const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
+      cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle='#d6ed91';
+      cx.fillText(s.nickname||'求生者',128,42);
+      const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
+      sp.scale.set(3,.75,1);sp.position.set(0,3.8,0);
+      cObj.group.add(sp);
+      survivorMeshes.set(s.id||s.nickname,cObj);
+    });
+
+    // Check hunter setup
+    if(!game.hunter.isLocal&&!game.hunter.isAi){
+      // Another human is the hunter
+      game.aiHunterDisabled=true;
+    }else{
+      game.aiHunterDisabled=false;
+    }
   }
-  game.message=`对局开始！房间【${lanRoomCode}】联机进行中`;
+
+  game.message=`同图联机已开始！[${lanRoomCode}] 共 ${game.survivors.length} 名求生者与 1 位监管者`;
 }
+function applyWorld(state){if(!sharedMatch)return;const me=state.actors.find(a=>a.id===myLanId),hunter=state.actors.find(a=>a.role==='hunter');if(!me||!hunter)return;game.role=me.role;game.time=state.time;game.generators=state.generators;game.pallets=state.pallets;game.exits=state.exits;game.exit=game.exits[0];game.hunter={...hunter.position};game.attack=hunter.attack;game.stun=hunter.stun;game.hunterAttackCooldown=hunter.hunterAttackCooldown;game.player={...(me.role==='survivor'?me.position:state.actors.find(a=>a.role==='survivor')?.position||{x:40,y:70}),id:myLanId};game.health=me.health;game.dashCooldown=me.dashCooldown;game.characterId=me.role==='survivor'?me.character:game.characterId;game.hunterId=hunter.character;game.calibration=me.calibration;game.vault=me.vault;game.healing=me.healing;game.healProgress=me.healProgress;game.decoding=game.generators[me.decodeIndex]||null;game.message=me.message;game.status=state.status==='finished'?'lost':'playing';game.survivors=state.actors.filter(a=>a.role==='survivor').map(a=>a.id===myLanId?game.player:{...a.position,id:a.id,nickname:a.nickname,health:a.health,isAi:a.bot});}
 
 function updateLanPeer(data){
   if(data.id===myLanId)return;
-  let peer=lanPeers.get(data.id);
-  if(!peer){
-    if(three){
-      const isHunter=data.role==='hunter';
-      const cObj=character(isHunter?0xb35b48:0x527a5e,isHunter);
-      // Floating billboard nickname above peer
-      const canvasText=document.createElement('canvas');canvasText.width=256;canvasText.height=64;
-      const ctxText=canvasText.getContext('2d');ctxText.fillStyle='#111a18cc';ctxText.fillRect(0,0,256,64);
-      ctxText.font='bold 28px sans-serif';ctxText.textAlign='center';ctxText.fillStyle=isHunter?'#e77856':'#d6ed91';
-      ctxText.fillText(data.nickname||'队友',128,42);
-      const tex=new three.T.CanvasTexture(canvasText);
-      const sprite=new three.T.Sprite(new three.T.SpriteMaterial({map:tex}));
-      sprite.scale.set(3,.75,1);sprite.position.set(0,3.8,0);
-      cObj.group.add(sprite);
-
-      peer={mesh:cObj.group,role:data.role,character:data.character};
-      lanPeers.set(data.id,peer);
+  if(data.role==='hunter'){
+    // Remote human hunter update
+    game.hunter.x=data.x;
+    game.hunter.y=data.y;
+    game.hunter.z=data.z||0;
+    game.hunter.angle=data.angle||0;
+    if(data.attack){
+      game.attack={phase:data.attack,elapsed:0,duration:.5,angle:data.angle||0};
     }
-  }
-  if(peer&&peer.mesh){
-    peer.mesh.position.set(data.x,data.z||0,data.y);
-    peer.mesh.rotation.y=data.angle||0;
+  }else{
+    // Remote human survivor update
+    const s=game.survivors.find(p=>p.id===data.id);
+    if(s){
+      s.x=data.x;s.y=data.y;s.z=data.z||0;s.angle=data.angle||0;s.health=data.health||2;
+    }
   }
 }
 
@@ -207,6 +241,9 @@ function handleLanEvent(msg){
   if(msg.event==='pallet_down'){
     const p=game.pallets[msg.payload.index];
     if(p){p.down=true;p.drop=.4;}
+  }else if(msg.event==='pallet_break'){
+    const p=game.pallets[msg.payload.index];
+    if(p){p.broken=true;p.down=false;}
   }else if(msg.event==='gen_progress'){
     const g=game.generators[msg.payload.index];
     if(g)g.p=msg.payload.p;
@@ -240,6 +277,7 @@ function characterMenu(){
       if(game.role==='hunter')game.selectHunter(c.id);
       else game.selectCharacter(c.id);
       characterMenu();
+      syncLobbyProfile();
     };
     root.appendChild(b);
   });
@@ -256,7 +294,9 @@ document.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>{
   game.selectRole(b.dataset.role);
   document.querySelectorAll('[data-role]').forEach(v=>v.classList.toggle('selected',v===b));
   characterMenu();
+  syncLobbyProfile();
 });
+function syncLobbyProfile(){if(lanRoomCode&&lanSocket?.readyState===WebSocket.OPEN&&game.status==='ready')lanSocket.send(JSON.stringify({type:'update_profile',role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}));}
 let pointer=null;const stick=$('#stick');stick.onpointerdown=e=>{pointer=e.pointerId;stick.setPointerCapture(pointer);stickMove(e);};stick.onpointermove=e=>{if(pointer===e.pointerId)stickMove(e);};stick.onpointerup=stick.onpointercancel=()=>{pointer=null;joy={x:0,y:0};$('#nub').style.transform='';};
 function stickMove(e){let r=stick.getBoundingClientRect(),x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2,l=Math.hypot(x,y);if(l>32){x*=32/l;y*=32/l;}joy={x:x/32,y:y/32};$('#nub').style.transform=`translate(${x}px,${y}px)`;}
 let drag=null;$('#stage').addEventListener('pointerdown',e=>{if(e.target===three?.renderer.domElement&&!drag){drag={id:e.pointerId,x:e.clientX,y:e.clientY};e.target.setPointerCapture(e.pointerId);}});$('#stage').addEventListener('pointermove',e=>{if(drag?.id===e.pointerId){cameraAngle-=(e.clientX-drag.x)*.006;cameraPitch=Math.max(-.3,Math.min(.8,cameraPitch+(e.clientY-drag.y)*.005));drag.x=e.clientX;drag.y=e.clientY;}});for(const name of ['pointerup','pointercancel','lostpointercapture'])$('#stage').addEventListener(name,e=>{if(drag?.id===e.pointerId)drag=null;});
@@ -385,7 +425,38 @@ function character(color,hunter){
   }
   return {group,legs,armL,armR};
 }const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
-function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}    player.group.children[0].material.color.setHex(game.character.color);
+function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}    // Render all other survivors in the same map (human peers and AI bots)
+    if(game.survivors){
+      for(const s of game.survivors){
+        if(s===game.player)continue;
+        let sMesh=survivorMeshes.get(s.id||s.nickname);
+        if(!sMesh&&three){
+          const group=three.player.group.clone(true);three.scene.add(group);sMesh={group,legs:[group.children[2],group.children[3]]};
+          const cv=document.createElement('canvas');cv.width=256;cv.height=64;
+          const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
+          cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle=s.isAi?'#adb5a8':'#d6ed91';
+          cx.fillText(s.nickname||'求生者',128,42);
+          const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
+          sp.scale.set(3,.75,1);sp.position.set(0,3.8,0);
+          sMesh.group.add(sp);
+          survivorMeshes.set(s.id||s.nickname,sMesh);
+        }
+        if(sMesh){
+          sMesh.group.position.set(s.x,s.z||0,s.y);
+          sMesh.group.rotation.y=s.angle||0;
+          const moving=(Math.hypot(s.x-(s.lastX||s.x),s.y-(s.lastY||s.y))>0.005);
+          s.lastX=s.x;s.lastY=s.y;
+          sMesh.legs.forEach((l,i)=>{l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.55:0;});
+          if((s.health||2)<=0){
+            sMesh.group.rotation.x=Math.PI/2;sMesh.group.position.y=.3;
+          }else{
+            sMesh.group.rotation.x=0;
+          }
+        }
+      }
+    }
+
+    player.group.children[0].material.color.setHex(game.character.color);
     generators.forEach((m,i)=>{
       const done=game.generators[i].p>=100;
       m.material.color.set(done?0x68f070:0xffcc00);
@@ -397,9 +468,10 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
         group.userData.beaconLight.intensity=done?3.5:5.5;
       }
     });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
-let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;if(view==='iso'){[x,y]=[(x+y)*.707,(y-x)*.707];}else if(view==='third'){[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];}input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};if(!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'))){game.update(dt,input);tapped.interact=false;tapped.dash=false;broadcastLocalPosition();}if(view==='third'&&three)drawThree(dt);else drawFlat();updateHUD();requestAnimationFrame(frame);}
+let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
+let lastNetworkInput=0;
 
-let lastSyncTime=0;
+let lastSyncTime=0,lastCipherSyncTime=0;
 function broadcastLocalPosition(){
   if(!lanSocket||lanSocket.readyState!==WebSocket.OPEN||!lanRoomCode)return;
   const now=performance.now();
@@ -413,6 +485,27 @@ function broadcastLocalPosition(){
     health:game.health,
     attack:game.attack?game.attack.phase:null
   }));
+
+  // Sync active decoding progress across the room
+  if(game.decoding&&now-lastCipherSyncTime>350){
+    lastCipherSyncTime=now;
+    const gIdx=game.generators.indexOf(game.decoding);
+    if(gIdx>=0){
+      lanSocket.send(JSON.stringify({type:'game_event',event:'gen_progress',payload:{index:gIdx,p:game.decoding.p}}));
+    }
+  }
+
+  // Sync pallet states
+  game.pallets.forEach((p,idx)=>{
+    if(p.down&&!p._lanSyncedDown){
+      p._lanSyncedDown=true;
+      lanSocket.send(JSON.stringify({type:'game_event',event:'pallet_down',payload:{index:idx}}));
+    }
+    if(p.broken&&!p._lanSyncedBroken){
+      p._lanSyncedBroken=true;
+      lanSocket.send(JSON.stringify({type:'game_event',event:'pallet_break',payload:{index:idx}}));
+    }
+  });
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){

@@ -68,7 +68,57 @@ export class Game{
   get controlled(){return this.role==='hunter'?this.hunter:this.player;}
   get currentHunter(){return hunters.find(h=>h.id===this.hunterId)||hunters[0];}
   selectHunter(id){if(this.status!=='ready'||!hunters.some(h=>h.id===id))return false;this.hunterId=id;return true;}
-  configureMap(){this.player={x:40,y:70,z:0,angle:0};this.hunter={x:150,y:60,z:0,angle:0};this.windows=map.outdoorWindows.map(w=>({...w}));this.pallets=[{x:24,y:81},...map.outdoorPallets].map(p=>({...p,down:false,drop:0,broken:false}));this.generators=[{x:28,y:42,p:0},{x:121,y:96,p:0},{x:159,y:143,p:0}];this.exits=map.exits.map(e=>({...e,p:0}));this.exit=this.exits[0];}
+  configureMap(){
+    this.player={x:40,y:70,z:0,angle:0,health:2,nickname:'我'};
+    this.hunter={x:150,y:60,z:0,angle:0};
+    this.survivors=[this.player];
+    this.windows=map.outdoorWindows.map(w=>({...w}));
+    this.pallets=[{x:24,y:81},...map.outdoorPallets].map(p=>({...p,down:false,drop:0,broken:false}));
+    this.generators=[{x:28,y:42,p:0},{x:121,y:96,p:0},{x:159,y:143,p:0}];
+    this.exits=map.exits.map(e=>({...e,p:0}));
+    this.exit=this.exits[0];
+  }
+  setupLANSession(config,myId){
+    this.survivors=[];
+    const humans=config.roster||[];
+    const humanHunter=humans.find(p=>p.role==='hunter');
+    if(humanHunter){
+      this.hunter.nickname=humanHunter.nickname;
+      this.hunter.character=humanHunter.character;
+      this.hunter.isLocal=(humanHunter.id===myId);
+      this.hunter.isAi=false;
+    }else{
+      this.hunter.nickname='AI监管者';
+      this.hunter.character='ripper';
+      this.hunter.isLocal=false;
+      this.hunter.isAi=true;
+    }
+
+    const humanSurvivors=humans.filter(p=>p.role==='survivor');
+    humanSurvivors.forEach((hs,idx)=>{
+      const isMe=(hs.id===myId);
+      const spawnPts=[{x:40,y:70},{x:160,y:125},{x:35,y:120},{x:140,y:45}];
+      const pt=spawnPts[idx%spawnPts.length];
+      if(isMe){
+        this.player.x=pt.x;this.player.y=pt.y;this.player.z=0;this.player.id=myId;this.player.nickname=hs.nickname;
+        this.survivors.push(this.player);
+      }else{
+        this.survivors.push({id:hs.id,nickname:hs.nickname,character:hs.character,x:pt.x,y:pt.y,z:0,angle:0,health:2,isLocal:false,isAi:false});
+      }
+    });
+
+    if(config.needsAiSurvivors>0){
+      const aiNames=['AI·园丁','AI·幸运儿','AI·魔术师'];
+      const spawnPts=[{x:55,y:150},{x:125,y:50},{x:165,y:90}];
+      for(let i=0;i<config.needsAiSurvivors&&i<aiNames.length;i++){
+        const pt=spawnPts[i];
+        this.survivors.push({id:'ai_surv_'+i,nickname:aiNames[i],character:'doctor',x:pt.x,y:pt.y,z:0,angle:0,health:2,isLocal:false,isAi:true,aiTimer:0});
+      }
+    }
+    if(!this.survivors.includes(this.player)&&this.role==='survivor'){
+      this.survivors.unshift(this.player);
+    }
+  }
   selectRole(role){if(this.status!=='ready'||!['survivor','hunter'].includes(role))return false;this.role=role;return true;}
   unstick(actor){this.collisionHeight=actor.z||0;if(!this.blocked(actor.x,actor.y)){this.collisionHeight=0;return;}this.resolveCollision(actor);this.collisionHeight=0;this.pathTimer=0;}
   breakPallet(){const p=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);if(!p)return false;if(!this.attack)this.beginAttack();return true;}
@@ -96,20 +146,29 @@ export class Game{
       if(p){
         p.broken=true;p.down=false;this.pathTimer=0;
         this.message='挥刀劈碎木板！';hit=true;
-      }else if(this.inAttackCone(this.player)&&this.visible()&&this.invincible===0){
-        this.stopDecode();
-        if(this.shield>0){
-          this.shield=0;this.message='役鸟抵挡攻击！';
-        }else{
-          this.health--;this.vault=null;this.dashRemaining=0;this.healProgress=0;
-          this.invincible=3;
-          this.message=this.health?'击中求生者！':'求生者已击倒！';
-          if(this.health<=0)this.status='lost';
+      }else{
+        const activeSurvivors=[this.player,...(this.survivors?this.survivors.filter(s=>s!==this.player&&s.id!==this.player.id&&(s.health||2)>0):[])];
+        const hitTarget=activeSurvivors.find(s=>this.inAttackCone(s)&&(s.invincible||0)<=0);
+        if(hitTarget){
+          this.stopDecode();
+          const hasShield=(hitTarget===this.player?this.shield>0:hitTarget.shield>0);
+          if(hasShield){
+            if(hitTarget===this.player)this.shield=0;
+            hitTarget.shield=0;
+            this.message='役鸟抵挡攻击！';
+          }else{
+            hitTarget.health=(hitTarget.health||2)-1;
+            hitTarget.vault=null;
+            hitTarget.dashRemaining=0;
+            hitTarget.healProgress=0;
+            hitTarget.invincible=3;
+            this.message=hitTarget.health>0?`击中【${hitTarget.nickname||'求生者'}】！`:`【${hitTarget.nickname||'求生者'}】已倒地！`;
+            if(hitTarget===this.player&&hitTarget.health<=0)this.status='lost';
+          }
+          hit=true;
         }
-        hit=true;
       }
       a.phase='recovery';a.elapsed=0;
-      // Precise blade wiping recovery time
       a.recoveryTime=hit?1.8:0.9;
       this.hunterAttackCooldown=a.recoveryTime;
       if(!hit)this.message='出刀落空（擦刀间隙）';
@@ -251,10 +310,62 @@ export class Game{
     else if(!dropping){if(this.decoding&&len>.1)this.stopDecode();const speed=(this.invincible>0?18:this.health===1?9:10)*(this.vaultBoost>0?1.3:1);this.move(this.player,x*speed*dt,y*speed*dt);}
     this.updateDecode(dt);const near=this.nearby,interaction=!!input.interact;this.interacting=false;if(!locked&&interaction&&near&&distance(near,this.player)<6){this.interacting=true;if(near.type==='pallet'&&!this.lastInteract&&distance(near,this.player)<3.5){near.ref.down=true;near.ref.drop=.4;this.message='放下木板';if(distance(near,this.hunter)<4){this.stun=3;this.message='木板命中！';}this.pathTimer=0;}else if((near.type==='window'||near.type==='palletVault')&&!this.lastInteract)this.beginVault(near);else if(len<.1&&near.type==='heal'){this.healProgress=Math.min(100,this.healProgress+dt*12.5);if(this.healProgress>=100){this.health=2;this.healProgress=0;this.message='包扎完成';}}else if(near.type==='generator'&&!this.lastInteract)this.startDecode(near.ref);else if(len<.1&&near.type==='exit'){near.ref.p=Math.min(100,near.ref.p+dt*25);if(near.ref.p===100)this.message='闸门已开启';}}this.lastInteract=interaction;
     if(this.pallets.some(p=>p.drop===.4)){this.palletVaultLock=1;this.palletReleaseRequired=true;}
-    const d=distance(this.player,this.hunter),hidden=this.smoke&&distance(this.player,this.smoke)<this.smoke.r;if(!hidden&&((d<30&&this.visible())||this.alert>0))this.memory=5;else this.memory=Math.max(0,this.memory-dt);if(hidden)this.memory=0;this.chasing=this.memory>0;const target=this.chasing?this.player:{x:50+34*Math.sin(this.elapsed*.07),y:50+30*Math.cos(this.elapsed*.07)};this.pathTimer-=dt;if(this.pathTimer<=0){this.path=this.findPath(target);this.pathTimer=.65;}
-    if(this.attack?.phase==='windup'&&this.role!=='hunter'&&this.stun===0&&this.attack.target==='survivor'){const dx=this.player.x-this.hunter.x,dy=this.player.y-this.hunter.y,l=Math.hypot(dx,dy)||1,step=Math.min(Math.max(0,l-1.65),Math.max(0,Math.min(dt,.55-this.attack.elapsed))*11.2);this.attack.angle=Math.atan2(dx,dy);this.hunter.angle=this.attack.angle;this.move(this.hunter,dx/l*step,dy/l*step);}
+    // Update AI Bots (survivors) if present
+    if(this.survivors){
+      for(const s of this.survivors){
+        if(s.isAi&&(s.health||2)>0){
+          const hd=distance(s,this.hunter);
+          if(hd<14){
+            // Flee away from hunter
+            const fx=s.x-this.hunter.x,fy=s.y-this.hunter.y,fl=Math.hypot(fx,fy)||1;
+            this.move(s,fx/fl*9*dt,fy/fl*9*dt);
+          }else{
+            // Work on closest unfinished cipher
+            const targetGen=this.generators.find(g=>g.p<100);
+            if(targetGen){
+              const gd=distance(s,targetGen);
+              if(gd>3.5){
+                const gx=targetGen.x-s.x,gy=targetGen.y-s.y,gl=Math.hypot(gx,gy)||1;
+                this.move(s,gx/gl*8*dt,gy/gl*8*dt);
+              }else{
+                targetGen.p=Math.min(100,targetGen.p+dt*4.5);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    const activeSurvivors=(this.survivors&&this.survivors.length)?this.survivors.filter(s=>(s.health||2)>0):[this.player];
+    let closestTarget=this.player,closestDist=1e9;
+    for(const s of activeSurvivors){
+      const sd=distance(s,this.hunter);
+      if(sd<closestDist){closestDist=sd;closestTarget=s;}
+    }
+    const d=closestDist;
+    const hidden=this.smoke&&distance(closestTarget,this.smoke)<this.smoke.r;
+    if(!hidden&&((d<30&&this.visible())||this.alert>0))this.memory=5;else this.memory=Math.max(0,this.memory-dt);
+    if(hidden)this.memory=0;this.chasing=this.memory>0;
+    const target=this.chasing?closestTarget:{x:50+34*Math.sin(this.elapsed*.07),y:50+30*Math.cos(this.elapsed*.07)};
+    this.pathTimer-=dt;if(this.pathTimer<=0){this.path=this.findPath(target);this.pathTimer=.65;}
+    if(this.attack?.phase==='windup'&&this.role!=='hunter'&&this.stun===0&&this.attack.target==='survivor'){const dx=closestTarget.x-this.hunter.x,dy=closestTarget.y-this.hunter.y,l=Math.hypot(dx,dy)||1,step=Math.min(Math.max(0,l-1.65),Math.max(0,Math.min(dt,.55-this.attack.elapsed))*11.2);this.attack.angle=Math.atan2(dx,dy);this.hunter.angle=this.attack.angle;this.move(this.hunter,dx/l*step,dy/l*step);}
     this.updateAttack(dt);
-    if(this.stun===0&&!this.attack&&this.role!=='hunter'&&!this.aiHunterDisabled){const pallet=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);if(pallet){this.hunter.angle=Math.atan2(pallet.x-this.hunter.x,pallet.y-this.hunter.y);this.beginAttack();}else if(d<(this.attackDistance??2.2)&&this.visible()){this.hunter.angle=Math.atan2(this.player.x-this.hunter.x,this.player.y-this.hunter.y);if(this.beginAttack())this.attack.target='survivor';this.attackDistance=1.9+Math.random()*.6;}else{let next=this.path[0]||target;if(distance(next,this.hunter)<1){this.path.shift();next=this.path[0]||target;}const dx=next.x-this.hunter.x,dy=next.y-this.hunter.y,l=Math.hypot(dx,dy)||1;this.move(this.hunter,dx/l*dt*(this.chasing?11.2:6),dy/l*dt*(this.chasing?11.2:6));}}
+    if(this.stun===0&&!this.attack&&this.role!=='hunter'&&!this.aiHunterDisabled){
+      const pallet=this.pallets.find(p=>p.down&&!p.broken&&distance(p,this.hunter)<4);
+      if(pallet){
+        this.hunter.angle=Math.atan2(pallet.x-this.hunter.x,pallet.y-this.hunter.y);
+        this.beginAttack();
+      }else if(d<(this.attackDistance??2.2)&&this.visible()){
+        this.hunter.angle=Math.atan2(closestTarget.x-this.hunter.x,closestTarget.y-this.hunter.y);
+        if(this.beginAttack())this.attack.target='survivor';
+        this.attackDistance=1.9+Math.random()*.6;
+      }else{
+        let next=this.path[0]||target;
+        if(distance(next,this.hunter)<1){this.path.shift();next=this.path[0]||target;}
+        const dx=next.x-this.hunter.x,dy=next.y-this.hunter.y,l=Math.hypot(dx,dy)||1;
+        this.move(this.hunter,dx/l*dt*(this.chasing?11.2:6),dy/l*dt*(this.chasing?11.2:6));
+      }
+    }
     if(this.role==='hunter'&&this.stun===0&&!this.attack){
       const h=this.hunterInput||{},l=Math.hypot(h.x||0,h.y||0)||1;
       this.move(this.hunter,(h.x||0)/Math.max(1,l)*11.2*dt,(h.y||0)/Math.max(1,l)*11.2*dt);

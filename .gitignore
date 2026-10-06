@@ -1,0 +1,5 @@
+node_modules/
+.env
+*.pem
+*.key
+服务器部署指南.txt

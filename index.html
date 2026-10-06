@@ -16,11 +16,13 @@
 <div id="overlay"><p class="eyebrow">雾港</p><h2>圣雾礼拜堂</h2>
 <div class="lanBar">
   <span id="lanStatus">● 未连接</span>
-  <input id="lanName" type="text" placeholder="设置你的昵称" maxlength="8" value="侦探玩家">
+  <input id="lanName" type="text" placeholder="设置你的昵称" maxlength="8">
   <input id="lanHost" type="text" placeholder="联机地址(IP:端口)" value="">
+  <select id="serverChoice" aria-label="选择联机服务器"><option value="current">当前服务器</option><option value="ali">ali</option><option value="custom">其他服务器（IP:端口）</option></select>
   <input id="lanRoom" type="text" placeholder="房间号" maxlength="6" value="8888">
-  <button id="lanJoinBtn">创建/进入房间</button>
+  <button id="lanConnectBtn">进入联机大厅</button><button id="lanJoinBtn">凭房间号加入</button>
 </div>
+<section id="lanHall" hidden><div class="roomHeader"><h3>局域网联机大厅</h3><button id="refreshRooms">刷新</button></div><div class="hallActions"><input id="roomName" maxlength="24" placeholder="房间名称（可选）"><button id="createRoom">创建房间</button></div><div id="roomsList"></div><p id="hallFeedback" role="status">请选择房间或创建新房间</p></section>
 
 <!-- Dedicated Room Lobby Overlay when connected -->
 <div id="roomLobby" hidden>
