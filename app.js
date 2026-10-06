@@ -17,7 +17,7 @@ function initLANMultiplayer(){
   const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),inputRoom=$('#lanRoom'),inputName=$('#lanName'),inputHost=$('#lanHost');
   const lobby=$('#roomLobby'),startBtn=$('#startLanMatchBtn'),leaveBtn=$('#leaveRoomBtn'),botsCheck=$('#fillBotsCheck');
   if(!statusEl||!btn)return;
-  const select=$('#serverChoice');select.onchange=()=>{if(select.value==='ali'){location.href='https://momentmap.top/fogbound/';return;}if(select.value==='current')inputHost.value=location.host;else{inputHost.value='';inputHost.focus();}};
+  const select=$('#serverChoice');select.onchange=()=>{if(select.value==='ali'){location.href='http://121.199.161.5/fogbound/';return;}if(select.value==='current')inputHost.value=location.host;else{inputHost.value='';inputHost.focus();}};
   inputHost.addEventListener('change',()=>{if(select.value==='custom')select.selectedOptions[0].textContent=inputHost.value.trim()||'其他服务器（IP:端口）';});
 
   // Retrieve remembered nickname & host

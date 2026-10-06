@@ -24,4 +24,16 @@ if check.returncode:
 shutil.copy2(root / "deploy/fogbound.service", "/etc/systemd/system/fogbound.service")
 subprocess.run(["systemctl", "daemon-reload"], check=True)
 subprocess.run(["systemctl", "enable", "--now", "fogbound"], check=True)
+for site in Path("/etc/nginx/sites-enabled").iterdir():
+    if not site.is_file():
+        continue
+    content = site.read_text()
+    if "listen 80 default_server;" in content and line not in content:
+        shutil.copy2(site, "/etc/nginx/" + site.name + ".fogbound-backup")
+        site.write_text(
+            content.replace("    location / {", line + "\n    location / {", 1)
+        )
+        if subprocess.run(["nginx", "-t"]).returncode:
+            site.write_text(content)
+            raise SystemExit("HTTP proxy configuration failed")
 subprocess.run(["systemctl", "reload", "nginx"], check=True)
