@@ -10,6 +10,7 @@ const files=new Set(['index.html','style.css','app.js','game.js','input.js','map
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 files.add('map-interactions.js');
 files.add('scoring.js');
+files.add('survivor-ai.js');
 files.add('room-flow.js');
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)

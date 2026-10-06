@@ -1,0 +1,16 @@
+import {distance} from './game.js';
+import {sightClear} from './hunter-ai.js';
+export class SurvivorBrain{
+  constructor(){this.mode='decode';this.target=null;this.route=[];this.repath=0;this.previous=null;this.stuck=0;this.interactLast=false;}
+  navigate(g,goal,dt){this.repath-=dt;const pos=g.player;if(this.previous)this.stuck=distance(pos,this.previous)<.025?this.stuck+dt:0;this.previous={...pos};if(this.repath<=0||this.stuck>.6){const original=g.hunter;g.hunter=pos;g.collisionHeight=pos.z||0;this.route=g.findPath(goal);g.hunter=original;g.collisionHeight=0;this.repath=.8;this.stuck=0;}let next=sightClear(g,pos,goal)?goal:this.route[0];while(next&&next!==goal&&distance(next,pos)<1.3){this.route.shift();next=this.route[0];}if(!next)return {x:0,y:0};const dx=next.x-pos.x,dy=next.y-pos.y,l=Math.hypot(dx,dy)||1;return {x:dx/l,y:dy/l};}
+  update(match,a,dt){const g=a.sim,h=match.actors.find(p=>p.role==='hunter').sim,pos=g.player,danger=distance(pos,h.hunter)<17&&sightClear(g,h.hunter,pos);let goal=null,interact=false,dash=false;
+    if(danger){this.mode='flee';g.stopDecode();const options=[];for(let i=0;i<16;i++){const angle=i*Math.PI/8,p={x:pos.x+Math.sin(angle)*10,y:pos.y+Math.cos(angle)*10};if(g.blocked(p.x,p.y)||!sightClear(g,pos,p))continue;options.push({...p,score:distance(p,h.hunter)+(sightClear(g,h.hunter,p)?0:8)});}options.sort((x,y)=>y.score-x.score);goal=options[0]||pos;const near=g.nearby;if(near&&distance(near,pos)<3&&['pallet','window','palletVault'].includes(near.type)){interact=!this.interactLast;goal=pos;}dash=g.dashCooldown===0&&distance(pos,h.hunter)<9&&['mercenary','forward','seer','prospector','antiquarian'].includes(a.character);}
+    else{const chairs=match.chairSystem.chairs.filter(c=>c.occupant);const rescue=chairs.sort((x,y)=>y.progress-x.progress)[0];const eligible=match.actors.filter(p=>p.role==='survivor'&&p.sim.health>0&&!p.eliminated&&!p.escaped&&p.seated==null&&p.hidden==null).sort((x,y)=>(distance(x.sim.player,rescue||pos)+(x.sim.health===1?20:0))-(distance(y.sim.player,rescue||pos)+(y.sim.health===1?20:0)));
+      if(rescue&&eligible[0]?.id===a.id){this.mode='rescue';goal=rescue;interact=distance(pos,goal)<2.8;}
+      else if(match.rules.hatch?.open){this.mode='escape';goal=match.rules.hatch;interact=distance(pos,goal)<2.8;}
+      else if(match.rules.powered){this.mode='gate';goal=[...match.world.exits].sort((x,y)=>distance(pos,x)-distance(pos,y))[0];if(goal.p>=100){goal={x:goal.x+goal.side*2,y:goal.y};this.mode='escape';}else interact=distance(pos,goal)<2.8;}
+      else{this.mode='decode';const machines=match.world.generators.filter(m=>m.p<100);const score=m=>distance(pos,m)+match.actors.filter(p=>p!==a&&p.sim.decoding===m).length*25+(distance(m,h.hunter)<20?25:0);goal=g.decoding||machines.sort((x,y)=>score(x)-score(y))[0];if(goal&&distance(pos,goal)<5){if(!g.decoding)g.startDecode(goal);goal=pos;}if(g.calibration&&g.calibration.elapsed/g.calibration.duration>=.65)g.calibrate();}
+    }
+    const key=goal?`${Math.round(goal.x/4)},${Math.round(goal.y/4)}`:'';if(this.target!==key){this.target=key;this.repath=0;}const movement=!goal||distance(pos,goal)<(interact?2.8:.4)?{x:0,y:0}:this.navigate(g,goal,dt);this.interactLast=interact;return {...movement,interact,dash};
+  }
+}
