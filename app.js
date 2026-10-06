@@ -6,6 +6,7 @@ import {buildArchitecture} from './architecture.js';
 import {SharedMatch} from './match.js';
 import {chairLocations} from './chairs.js';
 import {renderTeam} from './team-status.js';
+import {createHunterMesh} from './hunter-model.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
@@ -441,7 +442,7 @@ function character(color,hunter){
     group.userData.armR=armR;
   }
   return {group,legs,armL,armR};
-}const player=character(0xafc77d,false),hunter=character(0xb35b48,true);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
+}const player=character(0xafc77d,false),hunter=createHunterMesh(T,game.hunterId);scene.add(hunter.group);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
 function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}    // Render all other survivors in the same map (human peers and AI bots)
     if(game.survivors){
       for(const s of game.survivors){
@@ -573,9 +574,8 @@ function updateHUD(){
   $('.threat').hidden=!$('#threat').textContent||game.status!=='playing';
   if(three){
     three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);
-    three.hunter.group.position.y=game.hunter.z||0;three.hunter.group.scale.setScalar(1.35);
-    if(three.hunter.group.userData.skinId!==game.hunterId){const old=three.hunter.group.getObjectByName('hunterCostume');if(old)three.hunter.group.remove(old);const T=three.T,costume=new T.Group();costume.name='hunterCostume';const material=new T.MeshStandardMaterial({color:game.currentHunter.color,roughness:.85});const coat=new T.Mesh(new T.CylinderGeometry(.6,.8,1.5,10),material);coat.position.y=1.55;costume.add(coat);if(game.hunterId==='ripper'){const hat=new T.Mesh(new T.CylinderGeometry(.5,.5,.65,12),material);hat.position.y=3.7;costume.add(hat);const brim=new T.Mesh(new T.CylinderGeometry(.75,.75,.08,12),material);brim.position.y=3.35;costume.add(brim);}if(game.hunterId==='smiley'){const nose=new T.Mesh(new T.SphereGeometry(.16,8,6),new T.MeshStandardMaterial({color:0xd34b38}));nose.position.set(0,3,.48);costume.add(nose);const rocket=new T.Mesh(new T.CylinderGeometry(.3,.3,1.8,10),material);rocket.rotation.x=Math.PI/2;rocket.position.set(1,1.8,.4);costume.add(rocket);}if(game.hunterId==='naiad'){const spear=new T.Mesh(new T.CylinderGeometry(.04,.04,4,6),new T.MeshStandardMaterial({color:0xb7c7bb,metalness:.6}));spear.position.set(1.1,2,0);costume.add(spear);const head=new T.Mesh(new T.ConeGeometry(.17,.65,6),material);head.position.set(1.1,4.3,0);costume.add(head);}three.hunter.group.add(costume);three.hunter.group.userData.skinId=game.hunterId;}
-    three.hunter.group.children[0].material.color.setHex(game.currentHunter.color);
+    three.hunter.group.position.y=game.hunter.z||0;three.hunter.group.scale.setScalar(1.42);
+    if(three.hunter.group.userData.skinId!==game.hunterId)three.hunter.updateSkin(game.hunterId);
     three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
     three.pallets.forEach((m,i)=>{
       const p=game.pallets[i];if(!p){m.visible=false;return;}
