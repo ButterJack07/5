@@ -14,7 +14,8 @@
 <div class="bottom"><span id="prompt">靠近设备，按住 E 交互</span><span id="mode" hidden>2.5D / 等距跟随</span></div>
 <div class="skill"><button id="dash" aria-label="疾步突进，冷却五秒"><span id="dashIcon">➜</span><small id="dashTime">Q · 疾步</small></button></div>
 <div id="overlay"><p class="eyebrow">雾港</p><h2>圣雾礼拜堂</h2><p>选择角色，开始演练或加入共享对局。</p>
-<div class="lanBar">
+<nav id="modeSelect"><button data-mode="single" class="selected">单人模式</button><button data-mode="ai">AI 模式</button><button data-mode="online">联机模式</button></nav>
+<div class="lanBar" hidden>
   <span id="lanStatus">● 未连接</span>
   <input id="lanName" type="text" placeholder="设置你的昵称" maxlength="8">
   <input id="lanHost" type="text" placeholder="联机地址(IP:端口)" value="">

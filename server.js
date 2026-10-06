@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {networkInterfaces} from 'node:os';
 import {SharedMatch} from './match.js';
 
-const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js']);
+const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)

@@ -152,7 +152,7 @@ export class Game{
         this.message='挥刀劈碎木板！';hit=true;
       }else{
         const activeSurvivors=[this.player,...(this.survivors?this.survivors.filter(s=>s!==this.player&&s.id!==this.player.id&&(s.health||2)>0):[])];
-        const hitTarget=activeSurvivors.find(s=>this.inAttackCone(s)&&(s.invincible||0)<=0);
+        const hitTarget=activeSurvivors.find(s=>this.inAttackCone(s)&&(s===this.player?this.invincible:(s.invincible||0))<=0);
         if(hitTarget){
           this.stopDecode();
           const hasShield=(hitTarget===this.player?this.shield>0:hitTarget.shield>0);
@@ -161,7 +161,8 @@ export class Game{
             hitTarget.shield=0;
             this.message='役鸟抵挡攻击！';
           }else{
-            hitTarget.health=(hitTarget.health||2)-1;
+            hitTarget.health=(hitTarget===this.player?this.health:(hitTarget.health??2))-1;
+            if(hitTarget===this.player){this.health=hitTarget.health;this.invincible=3;this.vault=null;this.dashRemaining=0;}
             hitTarget.vault=null;
             hitTarget.dashRemaining=0;
             hitTarget.healProgress=0;
