@@ -382,3 +382,7 @@ export class Game{
     if(this.exits.some(e=>e.p>=100&&(this.player.x-e.x)*e.side>-2&&Math.abs(this.player.y-e.y)<7&&(this.player.z||0)<1)){this.status='won';this.message='成功逃离雾港';}if(this.time<=0){this.time=0;this.status='lost';this.message='时间耗尽';}
   }
 }
+hunters.splice(0,hunters.length,
+ {id:'smiley',name:'小丑',skill:'火箭冲刺',cooldown:5,color:0xa94f30,description:'长按技能键冲刺，最多10秒，撞到求生者造成一次伤害。'},
+ {id:'ripper',name:'杰克',skill:'雾刃',cooldown:5,color:0x304350,description:'发射速度30的雾刃，最长72距离，可躲避且被障碍物阻挡。'},
+ {id:'naiad',name:'渔女',skill:'水迹（被动）',cooldown:5,color:0x648d9b,description:'行走留下水迹，闭合形成水圈；圈内积累湿气，满100%造成伤害。无主动技能。'});

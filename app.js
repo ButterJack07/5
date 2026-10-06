@@ -278,6 +278,7 @@ $('#decodeButton').onclick=()=>{const target=game.generators.find(g=>g.p<100&&di
 $('#calibrateButton').onpointerdown=e=>{e.preventDefault();game.calibrate();};
 $('#calibrateButton').onclick=e=>{if(e.detail===0)game.calibrate();};
 for(const id of ['interact','dash']){let el=$('#'+id);el.onpointerdown=e=>{if(layoutEditing()||id==='interact'&&game.palletVaultLock>0)return;e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
+let hunterSkillHeld=false;$('#hunterSkill').onpointerdown=e=>{e.preventDefault();e.target.setPointerCapture(e.pointerId);hunterSkillHeld=true;};$('#hunterSkill').onpointerup=$('#hunterSkill').onpointercancel=()=>hunterSkillHeld=false;
 function characterMenu(){
   const root=$('#characterSelect');
   root.replaceChildren();
@@ -488,6 +489,7 @@ let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.0
 let lastNetworkInput=0;
 function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);chairState=localMatch.chairSnapshot();const state=localMatch.snapshot();teamActors=state.actors.filter(a=>a.role==='survivor');applyWorld(state);}
 setInterval(tickLocalMatch,50);
+setInterval(()=>{const held=!!keys.f||hunterSkillHeld;if(localMatch){const a=localMatch.actors.find(a=>a.id===myLanId);if(a)a.skillHeld=held;}else if(sharedMatch&&lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'hunter_skill',held:!document.hidden&&$('#settings').hidden&&held}));},50);
 window.addEventListener('error',event=>{const box=$('#message');box.textContent='游戏运行错误：'+event.message;box.classList.add('visible');console.error(event.error);});
 
 let lastSyncTime=0,lastCipherSyncTime=0;
@@ -528,6 +530,8 @@ function broadcastLocalPosition(){
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  if(three&&chairState?.hunterSkills){const s=chairState.hunterSkills;let fx=three.scene.getObjectByName('hunterSkillFx');if(!fx){fx=new three.T.Group();fx.name='hunterSkillFx';three.scene.add(fx);}while(fx.children.length) {const m=fx.children[0];fx.remove(m);m.geometry.dispose();m.material.dispose();}const T=three.T;for(const p of s.projectiles){const m=new T.Mesh(new T.SphereGeometry(.7,8,5),new T.MeshBasicMaterial({color:0xaad6ce,transparent:true,opacity:.65}));m.scale.set(1,.3,1.8);m.position.set(p.x,p.z+1.4,p.y);m.rotation.y=p.angle;fx.add(m);}for(const p of s.trail){const m=new T.Mesh(new T.CircleGeometry(1.2,8),new T.MeshBasicMaterial({color:0x67b7c9,transparent:true,opacity:.35,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(p.x,p.z+.06,p.y);fx.add(m);}for(const z of s.zones){const shape=new T.Shape();z.polygon.forEach((p,i)=>i?shape.lineTo(p.x,-p.y):shape.moveTo(p.x,-p.y));shape.closePath();const m=new T.Mesh(new T.ShapeGeometry(shape),new T.MeshBasicMaterial({color:0x429bab,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.y=z.z+.05;fx.add(m);}}
+  input.skill=!!keys.f||hunterSkillHeld;$('#hunterSkill').hidden=game.role!=='hunter'||game.status!=='playing';const hs=chairState?.hunterSkills;$('#hunterSkill').disabled=game.hunterId==='naiad'||(hs?.cooldown||0)>0;$('#hunterSkill').textContent=game.hunterId==='naiad'?'水迹 · 被动':hs?.rocket>0?'冲刺 '+hs.rocket.toFixed(1)+'s':hs?.cooldown>0?hs.cooldown.toFixed(1)+'s':'F · '+game.currentHunter.skill;
   if(sharedMatch&&chairState?.result){$('#matchResults').hidden=false;$('#resultTitle').textContent=chairState.result.winner==='draw'?'平局':chairState.result.winner==='survivors'?'求生者获胜':'监管者获胜';$('#resultDetails').textContent=`逃脱 ${chairState.result.escaped} 人 · 淘汰 ${chairState.result.eliminated} 人`;game.status='playing';}
   const teamRoot=$('#teamStatus');teamRoot.hidden=game.status==='ready';if(!teamRoot.hidden){const actors=sharedMatch?teamActors:[{id:'single',nickname:game.character.name,health:game.health}];renderTeam(teamRoot,actors,chairState);}
   if(chairState&&sharedMatch){const me=chairState.actors.find(a=>a.id===myLanId);if(me?.seated!=null){game.message='上椅淘汰进度 '+Math.round(chairState.chairs[me.seated].progress/60*100)+'%';}else if(me?.eliminated)game.message='已淘汰';else if(game.role==='hunter')game.message=chairState.carried?'牵气球中 · 靠近椅子按 E 挂椅':'靠近倒地求生者按 E 牵气球';}
@@ -569,7 +573,8 @@ function updateHUD(){
   $('.threat').hidden=!$('#threat').textContent||game.status!=='playing';
   if(three){
     three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);
-    three.hunter.group.position.y=game.hunter.z||0;
+    three.hunter.group.position.y=game.hunter.z||0;three.hunter.group.scale.setScalar(1.35);
+    if(three.hunter.group.userData.skinId!==game.hunterId){const old=three.hunter.group.getObjectByName('hunterCostume');if(old)three.hunter.group.remove(old);const T=three.T,costume=new T.Group();costume.name='hunterCostume';const material=new T.MeshStandardMaterial({color:game.currentHunter.color,roughness:.85});const coat=new T.Mesh(new T.CylinderGeometry(.6,.8,1.5,10),material);coat.position.y=1.55;costume.add(coat);if(game.hunterId==='ripper'){const hat=new T.Mesh(new T.CylinderGeometry(.5,.5,.65,12),material);hat.position.y=3.7;costume.add(hat);const brim=new T.Mesh(new T.CylinderGeometry(.75,.75,.08,12),material);brim.position.y=3.35;costume.add(brim);}if(game.hunterId==='smiley'){const nose=new T.Mesh(new T.SphereGeometry(.16,8,6),new T.MeshStandardMaterial({color:0xd34b38}));nose.position.set(0,3,.48);costume.add(nose);const rocket=new T.Mesh(new T.CylinderGeometry(.3,.3,1.8,10),material);rocket.rotation.x=Math.PI/2;rocket.position.set(1,1.8,.4);costume.add(rocket);}if(game.hunterId==='naiad'){const spear=new T.Mesh(new T.CylinderGeometry(.04,.04,4,6),new T.MeshStandardMaterial({color:0xb7c7bb,metalness:.6}));spear.position.set(1.1,2,0);costume.add(spear);const head=new T.Mesh(new T.ConeGeometry(.17,.65,6),material);head.position.set(1.1,4.3,0);costume.add(head);}three.hunter.group.add(costume);three.hunter.group.userData.skinId=game.hunterId;}
     three.hunter.group.children[0].material.color.setHex(game.currentHunter.color);
     three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
     three.pallets.forEach((m,i)=>{

@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {networkInterfaces} from 'node:os';
 import {SharedMatch} from './match.js';
 
-const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js']);
+const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js','hunter-skills.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
@@ -98,6 +98,7 @@ class WSServer {
   }
 
   handleMessage(client,msg){
+    if(msg.type==='hunter_skill'&&client.room){const match=this.rooms.get(client.room)?.match,a=match?.actors.find(a=>a.id===client.id&&a.role==='hunter');if(a)a.skillHeld=!!msg.held;return;}
     if(msg.type==='return_room'&&client.room){const r=this.rooms.get(client.room);if(!r||r.match?.status!=='finished')return;r.match=null;r.matchStarted=false;r.phase='seats';this.broadcast(client.room,{type:'returned_room'});this.roomState(client.room);this.notifyLobby();return;}
     if(msg.type==='list_rooms'){this.send(client,{type:'rooms_list',rooms:this.listRooms()});return;}
     if(msg.type==='leave_room'){this.leave(client);this.send(client,{type:'room_left'});return;}
