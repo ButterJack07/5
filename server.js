@@ -4,10 +4,13 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {networkInterfaces} from 'node:os';
 import {SharedMatch} from './match.js';
+import {quickMessages,resetPreparation} from './room-flow.js';
 
 const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js','hunter-skills.js','hunter-model.js','survivor-model.js','standard-rules.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 files.add('map-interactions.js');
+files.add('scoring.js');
+files.add('room-flow.js');
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
 // No third-party npm packages required so anyone on local Wi-Fi can play immediately.
@@ -15,7 +18,7 @@ class WSServer {
   constructor(server){
     this.clients=new Set();
     this.rooms=new Map(); // roomCode -> { players: Set, state: {} }
-    this.timer=setInterval(()=>{for(const [code,r] of this.rooms){if(!r.match)continue;r.match.update(.05);this.broadcast(code,{type:'world_state',state:{...r.match.snapshot(),chairState:r.match.chairSnapshot()}});}},50);
+    this.timer=setInterval(()=>{for(const [code,r] of this.rooms){if(r.phase==='characters'&&r.deadline&&Date.now()>=r.deadline&&!r.match){for(const p of r.players)p.ready=true;r.deadline=0;this.roomState(code);const host=[...r.players][0];if(host)this.handleMessage(host,{type:'start_match'});}if(!r.match)continue;r.match.update(.05);this.broadcast(code,{type:'world_state',state:{...r.match.snapshot(),chairState:r.match.chairSnapshot()}});}},50);
     server.on('close',()=>clearInterval(this.timer));
     server.on('upgrade',(req,socket)=>{
       if(this.clients.size>=40||!['/ws','/'].includes(req.url)){socket.destroy();return;}
@@ -55,7 +58,7 @@ class WSServer {
     }
   }
   roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,ready:!!p.ready,slot:p.slot,isHost:i===0}));}
-  roomState(code){const r=this.rooms.get(code);if(!r)return;for(const client of r.players)this.send(client,{type:'roster_update',roster:this.roster(r).map(p=>client.role==='survivor'&&p.role==='hunter'?{...p,character:'隐藏'}:p),phase:r.phase||'seats',bots:r.bots||[],fillBots:false});}
+  roomState(code){const r=this.rooms.get(code);if(!r)return;for(const client of r.players)this.send(client,{type:'roster_update',deadline:r.deadline||0,roster:this.roster(r).map(p=>client.role==='survivor'&&p.role==='hunter'?{...p,character:'隐藏'}:p),phase:r.phase||'seats',bots:r.bots||[],fillBots:false});}
   listRooms(){return [...this.rooms].map(([code,r])=>({code,name:r.name||code,count:r.players.size,started:r.matchStarted,host:this.roster(r)[0]?.nickname||'',capacity:5}));}
   notifyLobby(){const data={type:'rooms_list',rooms:this.listRooms()};for(const c of this.clients)this.send(c,data);}
   leave(client){const code=client.room,r=this.rooms.get(code);client.room=null;if(!r)return;r.players.delete(client);if(!r.players.size)this.rooms.delete(code);else{this.broadcast(code,{type:'player_left',id:client.id});this.broadcast(code,{type:'roster_update',roster:this.roster(r),fillBots:r.fillBots});}this.notifyLobby();}
@@ -99,9 +102,10 @@ class WSServer {
   }
 
   handleMessage(client,msg){
+    if(msg.type==='quick_message'&&client.room){const r=this.rooms.get(client.room),index=Number(msg.index);if(!r||client.role!=='survivor'||!Number.isInteger(index)||!quickMessages[index]||Date.now()-(client.lastQuick||0)<2000)return;client.lastQuick=Date.now();for(const p of r.players)if(p.role==='survivor')this.send(p,{type:'quick_message',nickname:client.nickname,text:quickMessages[index]});return;}
     if(msg.type==='ready'&&client.room){const r=this.rooms.get(client.room);if(!r||r.phase!=='characters'||r.matchStarted)return;client.ready=!client.ready;this.roomState(client.room);return;}
     if(msg.type==='hunter_skill'&&client.room){const match=this.rooms.get(client.room)?.match,a=match?.actors.find(a=>a.id===client.id&&a.role==='hunter');if(a)a.skillHeld=!!msg.held;return;}
-    if(msg.type==='return_room'&&client.room){const r=this.rooms.get(client.room);if(!r||r.match?.status!=='finished')return;r.match=null;r.matchStarted=false;r.phase='seats';this.broadcast(client.room,{type:'returned_room'});this.roomState(client.room);this.notifyLobby();return;}
+    if(msg.type==='return_room'&&client.room){const r=this.rooms.get(client.room);if(!r||r.match?.status!=='finished')return;r.match=null;r.matchStarted=false;resetPreparation(r);this.broadcast(client.room,{type:'returned_room'});this.roomState(client.room);this.notifyLobby();return;}
     if(msg.type==='list_rooms'){this.send(client,{type:'rooms_list',rooms:this.listRooms()});return;}
     if(msg.type==='leave_room'){this.leave(client);this.send(client,{type:'room_left'});return;}
     if(msg.type==='create_room'||msg.type==='join_room'){
@@ -133,7 +137,7 @@ class WSServer {
       this.roomState(roomCode);
     }else if(msg.type==='select_slot'&&client.room){const r=this.rooms.get(client.room),slot=Number(msg.slot);if(!r||r.phase!=='seats'||!Number.isInteger(slot)||slot<0||slot>4)return;if([...r.players].some(p=>p!==client&&p.slot===slot)){this.send(client,{type:'error',message:'该位置已有人'});return;}client.slot=slot;client.role=slot===4?'hunter':'survivor';client.character=slot===4?'ripper':'mercenary';r.bots=r.bots.filter(i=>i!==slot);this.roomState(client.room);
     }else if(msg.type==='slot_bot'&&client.room){const r=this.rooms.get(client.room),slot=Number(msg.slot);if(!r||[...r.players][0]!==client||r.phase!=='seats'||!Number.isInteger(slot)||slot<0||slot>4||[...r.players].some(p=>p.slot===slot))return;r.bots=r.bots.includes(slot)?r.bots.filter(i=>i!==slot):[...r.bots,slot];this.roomState(client.room);
-    }else if(msg.type==='choose_characters'&&client.room){const r=this.rooms.get(client.room);if(!r||[...r.players][0]!==client||r.phase!=='seats')return;if(r.players.size<2){this.send(client,{type:'error',message:'至少需要 2 名真人'});return;}if(![...r.players].some(p=>p.role==='survivor')){this.send(client,{type:'error',message:'需要求生者'});return;}r.phase='characters';this.roomState(client.room);
+    }else if(msg.type==='choose_characters'&&client.room){const r=this.rooms.get(client.room);if(!r||[...r.players][0]!==client||r.phase!=='seats')return;if(r.players.size<2){this.send(client,{type:'error',message:'至少需要 2 名真人'});return;}if(![...r.players].some(p=>p.role==='survivor')){this.send(client,{type:'error',message:'需要求生者'});return;}r.phase='characters';r.deadline=Date.now()+60000;for(const p of r.players)p.ready=false;this.roomState(client.room);
     }else if(msg.type==='update_profile'&&client.room){
       const r=this.rooms.get(client.room);
       if(!r)return;

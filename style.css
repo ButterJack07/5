@@ -13,6 +13,7 @@
 @media(pointer:coarse){#rotateHint:not(.dismissed){display:flex}}
 #roleSelect{display:flex;gap:8px;margin:8px}#roleSelect button{padding:8px 22px;margin:0;background:#1d2d27;color:#d5dcc8}#roleSelect button.selected{background:#d6ed91;color:#162319}
 #modeSelect{display:flex;gap:8px;margin:8px}#modeSelect button{padding:8px 14px;margin:0;background:#22352a;color:#e0e5d2;font-size:12px}#modeSelect .selected{background:#d6ed91;color:#17271d}
+#quickMessages{position:absolute;left:15px;top:150px;display:grid;gap:5px;z-index:3}#quickMessages button{padding:7px 10px;background:#1b3025b8;border:1px solid #87967677;color:#dde6cd;font-size:10px}#resultScores{max-height:40vh;overflow:auto;padding:0 18px}#resultScores p{font-size:12px}
 #mapAction{position:absolute;left:50%;bottom:130px;transform:translateX(-50%);padding:12px 22px;background:#263d2ce0;border:1px solid #d6ed91;color:#e7efcd;z-index:3;font-size:12px}
 #hunterSkill{position:absolute;right:30px;bottom:125px;width:88px;height:60px;border:1px solid #e5b38c;border-radius:20px;background:#3b2927dd;color:#f0dbc1;z-index:3;font-size:11px;touch-action:none}#hunterSkill:disabled{opacity:.5}
 #matchResults{position:absolute;inset:0;background:#10201bea;z-index:9;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}#matchResults h2{font-weight:400;font-size:32px}#matchResults p{color:#cbd4bb}#matchResults button{background:#d6ed91;color:#1c2b1e;padding:13px 28px;border:0}

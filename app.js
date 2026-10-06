@@ -10,6 +10,7 @@ import {createHunterMesh} from './hunter-model.js';
 import {createSurvivorMesh} from './survivor-model.js';
 import {cipherLocations} from './standard-rules.js';
 import {lockerLocations} from './map-interactions.js';
+import {quickMessages,preparationRemaining} from './room-flow.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 game.generators=cipherLocations.map(p=>({...p,p:0}));
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
@@ -25,6 +26,7 @@ $('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;g
 let playMode='single',localMatch=null;
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';});
 let roomPhase='seats';
+let roomDeadline=0;const quickRoot=document.createElement('div');quickRoot.id='quickMessages';for(const [index,text] of quickMessages.entries()){const b=document.createElement('button');b.textContent=text;b.onclick=()=>{if(sharedMatch&&lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'quick_message',index}));};quickRoot.appendChild(b);}$('#stage').appendChild(quickRoot);
 $('#readyRoomBtn').onclick=()=>lanSocket?.send(JSON.stringify({type:'ready'}));
 function sendAction(action,index){if(localMatch){localMatch.action(myLanId,action,index);return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'action',action,index}));}
 const localDecode=game.startDecode.bind(game),localCalibrate=game.calibrate.bind(game);game.startDecode=g=>sharedMatch?sendAction('decode',game.generators.indexOf(g)):localDecode(g);game.calibrate=()=>sharedMatch?sendAction('calibrate'):localCalibrate();
@@ -102,14 +104,15 @@ function initLANMultiplayer(){
     lanSocket.onmessage=e=>{
       try{
         const msg=JSON.parse(e.data);
-        if(msg.type==='returned_room'){sharedMatch=false;game.reset();$('#matchResults').hidden=true;$('#overlay').style.display='flex';}
+        if(msg.type==='quick_message'){$('#hallFeedback').textContent=msg.nickname+'：'+msg.text;game.message=msg.nickname+'：'+msg.text;}
+        else if(msg.type==='returned_room'){sharedMatch=false;game.reset();$('#matchResults').hidden=true;$('#overlay').style.display='flex';}
         else if(msg.type==='world_state'){teamActors=msg.state.actors.filter(a=>a.role==='survivor');chairState=msg.state.chairState;applyWorld(msg.state);}
         else if(msg.type==='rooms_list'){renderRooms(msg.rooms||[]);}
         else if(msg.type==='room_left'){lanRoomCode=null;myLanId=null;lobby.hidden=true;$('#lanHall').hidden=false;$('#start').hidden=false;}
         else if(msg.type==='room_joined'||msg.type==='roster_update'){
           if(msg.type==='room_joined'){myLanId=msg.yourId;lanRoomCode=msg.room;}
           lanRoster=msg.roster||[];
-          roomPhase=msg.phase||'seats';renderLobby(lanRoster,msg.fillBots,msg.bots||[]);
+          roomPhase=msg.phase||'seats';roomDeadline=msg.deadline||0;renderLobby(lanRoster,msg.fillBots,msg.bots||[]);
         }else if(msg.type==='match_start'){
           lobby.hidden=true;
           beginLANMatch(msg);
@@ -547,6 +550,7 @@ function broadcastLocalPosition(){
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  quickRoot.hidden=game.role!=='survivor'||game.status!=='playing'||!lanRoomCode; if(roomPhase==='characters'&&!$('#roomLobby').hidden)$('#playerCountText').textContent='选角剩余 '+preparationRemaining(roomDeadline)+' 秒';if(chairState?.result&&chairState.scores){let list=$('#resultScores');if(!list){list=document.createElement('div');list.id='resultScores';$('#matchResults').insertBefore(list,$('#returnRoom'));}list.replaceChildren();for(const p of chairState.scores){const row=document.createElement('p');row.textContent=`${p.nickname||p.character} · ${p.result} · 演绎分 ${p.score}`;list.appendChild(row);}}
   const mi=chairState?.interactions,me=chairState?.actors?.find(a=>a.id===myLanId),pos=game.controlled;let action=null,index=-1;if(mi){index=mi.lockers.findIndex(l=>distance(l,pos)<3);if(index>=0)action='locker';if(game.role==='hunter'&&index<0){index=game.windows.findIndex(w=>distance(w,pos)<3);if(index>=0)action='hunter_vault';}$('#mapAction').hidden=!action||game.status!=='playing';$('#mapAction').textContent=action==='hunter_vault'?'翻窗 / 封窗':game.role==='hunter'?'搜索柜子':me?.hidden!=null?'离开柜子':'躲入柜子';$('#mapAction').onclick=()=>sendAction(action,index);}else $('#mapAction').hidden=true;
   const rules=chairState?.rules;if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';if(game.role==='hunter'&&rules.detention>0)game.message='挽留 '+Math.ceil(rules.detention)+' 秒';const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed')game.message='按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';if(state==='carried')game.message='按住交互挣扎 '+Math.floor(rules.struggle*100)+'%';}
   if(three&&chairState?.hunterSkills){const s=chairState.hunterSkills;let fx=three.scene.getObjectByName('hunterSkillFx');if(!fx){fx=new three.T.Group();fx.name='hunterSkillFx';three.scene.add(fx);}while(fx.children.length) {const m=fx.children[0];fx.remove(m);m.geometry.dispose();m.material.dispose();}const T=three.T;for(const p of s.projectiles){const m=new T.Mesh(new T.SphereGeometry(.7,8,5),new T.MeshBasicMaterial({color:0xaad6ce,transparent:true,opacity:.65}));m.scale.set(1,.3,1.8);m.position.set(p.x,p.z+1.4,p.y);m.rotation.y=p.angle;fx.add(m);}for(const p of s.trail){const m=new T.Mesh(new T.CircleGeometry(1.2,8),new T.MeshBasicMaterial({color:0x67b7c9,transparent:true,opacity:.35,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(p.x,p.z+.06,p.y);fx.add(m);}for(const z of s.zones){const shape=new T.Shape();z.polygon.forEach((p,i)=>i?shape.lineTo(p.x,-p.y):shape.moveTo(p.x,-p.y));shape.closePath();const m=new T.Mesh(new T.ShapeGeometry(shape),new T.MeshBasicMaterial({color:0x429bab,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.y=z.z+.05;fx.add(m);}}
