@@ -21,7 +21,7 @@ test('real websocket lobby creates lists joins switches role and starts as host'
     let roster;do{roster=await b.wait('roster_update');}while(!roster.roster.some(p=>p.role==='hunter'));
     assert.equal(roster.roster.filter(p=>p.role==='hunter').length,1);
     a.send({type:'slot_bot',slot:2});let slots;do{slots=await a.wait('roster_update');}while(!slots.bots?.includes(2));assert.equal(slots.phase,'seats');
-    a.send({type:'slot_bot',slot:2});a.send({type:'choose_characters'});a.send({type:'start_match'});
+    a.send({type:'slot_bot',slot:2});a.send({type:'choose_characters'});a.send({type:'ready'});b.send({type:'ready'});let prepared;do{prepared=await a.wait('roster_update');}while(!prepared.roster.every(p=>p.ready));a.send({type:'start_match'});
     const match=await b.wait('match_start');assert.equal(match.needsAiHunter,false);assert.equal(match.needsAiSurvivors,0);assert.equal(match.roster.length,2);
     const firstA=await a.wait('world_state'),firstB=await b.wait('world_state');assert.deepEqual(firstA.state.generators,firstB.state.generators);assert.deepEqual(firstA.state.actors.map(p=>p.id),firstB.state.actors.map(p=>p.id));
     const original=firstA.state.actors.find(p=>p.id===joined.yourId).position.x;

@@ -17,7 +17,7 @@ export class HunterBrain{
   constructor(){this.mode='patrol';this.targetId=null;this.lastSeen=null;this.memory=0;this.route=[];this.repath=0;this.patrolIndex=0;this.stuck=0;this.previous=null;}
   update(sim,candidates,dt){
     const actor=sim.hunter;this.memory=Math.max(0,this.memory-dt);this.repath-=dt;
-    const visible=candidates.filter(c=>distance(actor,c.sim.player)<32&&sightClear(sim,actor,c.sim.player)&&!(c.sim.smoke&&distance(c.sim.player,c.sim.smoke)<c.sim.smoke.r));
+    const visible=candidates.filter(c=>c.hidden==null&&distance(actor,c.sim.player)<32&&sightClear(sim,actor,c.sim.player)&&!(c.sim.smoke&&distance(c.sim.player,c.sim.smoke)<c.sim.smoke.r));
     const score=c=>distance(actor,c.sim.player)-(c.sim.health===1?4:0)-(c.id===this.targetId?7:0);
     visible.sort((a,b)=>score(a)-score(b));
     if(visible.length){const target=visible[0];this.targetId=target.id;this.lastSeen={...target.sim.player};this.memory=5;this.mode='chase';}

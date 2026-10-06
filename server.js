@@ -7,6 +7,7 @@ import {SharedMatch} from './match.js';
 
 const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js','hunter-skills.js','hunter-model.js','survivor-model.js','standard-rules.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
+files.add('map-interactions.js');
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
 // No third-party npm packages required so anyone on local Wi-Fi can play immediately.
@@ -53,8 +54,8 @@ class WSServer {
       if(c!==excludeClient)this.send(c,data);
     }
   }
-  roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,slot:p.slot,isHost:i===0}));}
-  roomState(code){const r=this.rooms.get(code);if(!r)return;this.broadcast(code,{type:'roster_update',roster:this.roster(r),phase:r.phase||'seats',bots:r.bots||[],fillBots:false});}
+  roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,ready:!!p.ready,slot:p.slot,isHost:i===0}));}
+  roomState(code){const r=this.rooms.get(code);if(!r)return;for(const client of r.players)this.send(client,{type:'roster_update',roster:this.roster(r).map(p=>client.role==='survivor'&&p.role==='hunter'?{...p,character:'隐藏'}:p),phase:r.phase||'seats',bots:r.bots||[],fillBots:false});}
   listRooms(){return [...this.rooms].map(([code,r])=>({code,name:r.name||code,count:r.players.size,started:r.matchStarted,host:this.roster(r)[0]?.nickname||'',capacity:5}));}
   notifyLobby(){const data={type:'rooms_list',rooms:this.listRooms()};for(const c of this.clients)this.send(c,data);}
   leave(client){const code=client.room,r=this.rooms.get(code);client.room=null;if(!r)return;r.players.delete(client);if(!r.players.size)this.rooms.delete(code);else{this.broadcast(code,{type:'player_left',id:client.id});this.broadcast(code,{type:'roster_update',roster:this.roster(r),fillBots:r.fillBots});}this.notifyLobby();}
@@ -98,6 +99,7 @@ class WSServer {
   }
 
   handleMessage(client,msg){
+    if(msg.type==='ready'&&client.room){const r=this.rooms.get(client.room);if(!r||r.phase!=='characters'||r.matchStarted)return;client.ready=!client.ready;this.roomState(client.room);return;}
     if(msg.type==='hunter_skill'&&client.room){const match=this.rooms.get(client.room)?.match,a=match?.actors.find(a=>a.id===client.id&&a.role==='hunter');if(a)a.skillHeld=!!msg.held;return;}
     if(msg.type==='return_room'&&client.room){const r=this.rooms.get(client.room);if(!r||r.match?.status!=='finished')return;r.match=null;r.matchStarted=false;r.phase='seats';this.broadcast(client.room,{type:'returned_room'});this.roomState(client.room);this.notifyLobby();return;}
     if(msg.type==='list_rooms'){this.send(client,{type:'rooms_list',rooms:this.listRooms()});return;}
@@ -139,7 +141,7 @@ class WSServer {
       if(msg.role==='hunter'&&[...r.players].some(p=>p!==client&&p.role==='hunter')){this.send(client,{type:'error',message:'监管者位置已有人'});return;}
       if(msg.nickname)client.nickname=String(msg.nickname).slice(0,10);
       if(r.phase==='seats'&&['hunter','survivor'].includes(msg.role)){const slot=msg.role==='hunter'?4:[0,1,2,3].find(i=>![...r.players].some(p=>p!==client&&p.slot===i));if(slot!==undefined){client.slot=slot;client.role=msg.role;}}
-      if(msg.character)client.character=msg.character;
+      if(msg.character){client.character=msg.character;client.ready=false;}
       const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
       this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
       this.roomState(client.room);
@@ -155,6 +157,7 @@ class WSServer {
       if(!r)return;
       if([...r.players][0]!==client||r.matchStarted)return;
       if(r.phase!=='characters'){this.send(client,{type:'error',message:'请先进入选角阶段'});return;}
+      if(![...r.players].every(p=>p.ready)){this.send(client,{type:'error',message:'等待所有玩家点击准备'});return;}
       const players=Array.from(r.players);
       const survivors=players.filter(p=>p.role==='survivor');
       const hunters=players.filter(p=>p.role==='hunter');

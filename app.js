@@ -9,6 +9,7 @@ import {renderTeam} from './team-status.js';
 import {createHunterMesh} from './hunter-model.js';
 import {createSurvivorMesh} from './survivor-model.js';
 import {cipherLocations} from './standard-rules.js';
+import {lockerLocations} from './map-interactions.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 game.generators=cipherLocations.map(p=>({...p,p:0}));
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
@@ -24,6 +25,7 @@ $('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;g
 let playMode='single',localMatch=null;
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';});
 let roomPhase='seats';
+$('#readyRoomBtn').onclick=()=>lanSocket?.send(JSON.stringify({type:'ready'}));
 function sendAction(action,index){if(localMatch){localMatch.action(myLanId,action,index);return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'action',action,index}));}
 const localDecode=game.startDecode.bind(game),localCalibrate=game.calibrate.bind(game);game.startDecode=g=>sharedMatch?sendAction('decode',game.generators.indexOf(g)):localDecode(g);game.calibrate=()=>sharedMatch?sendAction('calibrate'):localCalibrate();
 function initLANMultiplayer(){
@@ -179,6 +181,7 @@ function renderLobby(roster,fillBots,bots=[]){
 
   const me=roster.find(p=>p.id===myLanId);
   const isHost=me?.isHost;
+  $('#readyRoomBtn').hidden=roomPhase!=='characters';$('#readyRoomBtn').textContent=me?.ready?'取消准备':'准备';
   $('#fillBotsCheck').disabled=!isHost;
   $('.lobbyOptions').hidden=true;$('#roleSelect').hidden=true;$('#characterSelect').hidden=roomPhase!=='characters';$('#skillDescription').hidden=roomPhase!=='characters';if(me){game.role=me.role;document.querySelectorAll('[data-role]').forEach(b=>b.classList.toggle('selected',b.dataset.role===me.role));characterMenu();}
   const startBtn=$('#startLanMatchBtn');
@@ -189,7 +192,7 @@ function renderLobby(roster,fillBots,bots=[]){
     startBtn.disabled=true;
     startBtn.textContent='等待房主开启对局...';
   }else{
-    startBtn.disabled=false;
+    startBtn.disabled=roomPhase==='characters'&&!roster.every(p=>p.ready);
     startBtn.textContent=roomPhase==='seats'?'进入选角阶段':'确认角色并开始对局';
   }
 }
@@ -351,6 +354,7 @@ cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,
 cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
 walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall&&!w.redChurchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
 buildArchitecture(T,scene);
+for(const l of lockerLocations){const group=new T.Group();group.position.set(l.x,0,l.y);scene.add(group);cube(0,1.55,0,1.7,3.1,1.5,0x4c4e40,group);cube(0,1.55,.78,1.5,2.9,.08,0x6b6550,group);cube(.48,1.4,.85,.08,.3,.08,0xc0b38b,group);}
 for(const [i,c] of chairLocations.entries()){const group=new T.Group();group.name='chair-'+i;group.position.set(c.x,0,c.y);scene.add(group);cube(0,.8,0,1.5,.3,1.2,0x843b46,group);cube(0,1.8,-.45,1.5,2,.25,0x843b46,group);for(const side of [-1,1]){cube(side*.8,1.2,0,.15,.2,1.4,0x6d5b45,group);mesh(new T.CylinderGeometry(.25,.25,2.5,10),0x665d42,side*1.05,1.8,-.45,group);mesh(new T.ConeGeometry(.3,.7,10),0x8e3039,side*1.05,3.4,-.45,group);}cube(0,1.9,-.25,1.6,.18,.12,0x372b28,group);const clock=mesh(new T.CylinderGeometry(.38,.38,.12,12),0xc7b57c,0,3,-.3,group);clock.rotation.x=Math.PI/2;}
 buildOutdoorDetailing(T,scene);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
@@ -543,6 +547,7 @@ function broadcastLocalPosition(){
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  const mi=chairState?.interactions,me=chairState?.actors?.find(a=>a.id===myLanId),pos=game.controlled;let action=null,index=-1;if(mi){index=mi.lockers.findIndex(l=>distance(l,pos)<3);if(index>=0)action='locker';if(game.role==='hunter'&&index<0){index=game.windows.findIndex(w=>distance(w,pos)<3);if(index>=0)action='hunter_vault';}$('#mapAction').hidden=!action||game.status!=='playing';$('#mapAction').textContent=action==='hunter_vault'?'翻窗 / 封窗':game.role==='hunter'?'搜索柜子':me?.hidden!=null?'离开柜子':'躲入柜子';$('#mapAction').onclick=()=>sendAction(action,index);}else $('#mapAction').hidden=true;
   const rules=chairState?.rules;if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';if(game.role==='hunter'&&rules.detention>0)game.message='挽留 '+Math.ceil(rules.detention)+' 秒';const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed')game.message='按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';if(state==='carried')game.message='按住交互挣扎 '+Math.floor(rules.struggle*100)+'%';}
   if(three&&chairState?.hunterSkills){const s=chairState.hunterSkills;let fx=three.scene.getObjectByName('hunterSkillFx');if(!fx){fx=new three.T.Group();fx.name='hunterSkillFx';three.scene.add(fx);}while(fx.children.length) {const m=fx.children[0];fx.remove(m);m.geometry.dispose();m.material.dispose();}const T=three.T;for(const p of s.projectiles){const m=new T.Mesh(new T.SphereGeometry(.7,8,5),new T.MeshBasicMaterial({color:0xaad6ce,transparent:true,opacity:.65}));m.scale.set(1,.3,1.8);m.position.set(p.x,p.z+1.4,p.y);m.rotation.y=p.angle;fx.add(m);}for(const p of s.trail){const m=new T.Mesh(new T.CircleGeometry(1.2,8),new T.MeshBasicMaterial({color:0x67b7c9,transparent:true,opacity:.35,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(p.x,p.z+.06,p.y);fx.add(m);}for(const z of s.zones){const shape=new T.Shape();z.polygon.forEach((p,i)=>i?shape.lineTo(p.x,-p.y):shape.moveTo(p.x,-p.y));shape.closePath();const m=new T.Mesh(new T.ShapeGeometry(shape),new T.MeshBasicMaterial({color:0x429bab,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.y=z.z+.05;fx.add(m);}}
   input.skill=!!keys.f||hunterSkillHeld;$('#hunterSkill').hidden=game.role!=='hunter'||game.status!=='playing';const hs=chairState?.hunterSkills;$('#hunterSkill').disabled=game.hunterId==='naiad'||(hs?.cooldown||0)>0;$('#hunterSkill').textContent=game.hunterId==='naiad'?'水迹 · 被动':hs?.rocket>0?'冲刺 '+hs.rocket.toFixed(1)+'s':hs?.cooldown>0?hs.cooldown.toFixed(1)+'s':'F · '+game.currentHunter.skill;
@@ -627,6 +632,7 @@ function updateHUD(){
   }
   if(three){if(rules?.hatch){let hatch=three.scene.getObjectByName('escapeHatch');if(!hatch){hatch=new three.T.Mesh(new three.T.BoxGeometry(2.8,.12,2.8),new three.T.MeshStandardMaterial({color:0x574e3e}));hatch.name='escapeHatch';three.scene.add(hatch);}hatch.position.set(rules.hatch.x,.08,rules.hatch.y);hatch.material.color.setHex(rules.hatch.open?0x96c881:0x574e3e);if(rules.hatch.open&&distance(game.player,rules.hatch)<3)$('#prompt').textContent='E / 交互跳入地窖';}three.gate.visible=false;for(const m of three.scene.children){if(m.name==='upperFloor'||m.name==='buildingRoof'){m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;}if(m.name==='escapeGate'){const e=game.exits.find(e=>e.x===m.userData.exit.x);m.position.y=2.5+(e?.p||0)/100*6;}}if(game.role==='hunter')for(const [id,model] of survivorMeshes){model.group.traverse(o=>{if(o.material?.emissive){o.material.emissive.setHex(rules?.reveal.includes(id)?0x704f15:0);o.material.depthTest=!rules?.reveal.includes(id);}});}updateCamera();three.renderer.render(three.scene,three.camera);}
   if(sharedMatch&&chairState&&!chairState.result){const c=chairState.chairs.find(c=>c.occupant&&distance(c,game.player)<3),rescue=chairState.rescues.find(r=>r.id===myLanId);if(game.role==='survivor'&&c&&game.health>0){$('#interact').textContent='救人';$('#prompt').textContent=rescue?'救援中 '+Math.floor(rescue.time*100)+'% · 受击会震慑':'点击 E / 交互救人（1秒）';$('.bottom').hidden=false;}if(game.role==='hunter'){const near=chairLocations.some(c=>distance(c,game.hunter)<3);$('#interact').textContent=chairState.carried&&near?'挂椅':chairState.carried?'牵气球':'牵起';}}
+  if(three&&mi){three.player.group.visible=game.role!=='hunter'&&me?.hidden==null;for(const [id,m] of survivorMeshes)m.group.visible=chairState.actors.find(a=>a.id===id)?.hidden==null;three.renderer.render(three.scene,three.camera);}
   if(!sharedMatch&&['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
   if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';$('#time').textContent=game.role==='hunter'&&rules.detention>0?'挽留 '+Math.ceil(rules.detention)+'s':Math.floor(Math.max(0,300-game.time)/60).toString().padStart(2,'0')+':'+Math.floor(Math.max(0,300-game.time)%60).toString().padStart(2,'0');const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed'||state==='carried'){$('#interact').textContent=state==='carried'?'挣扎':'自愈';$('#prompt').textContent=state==='carried'?'按住交互挣扎 '+Math.floor(rules.struggle*100)+'%':'按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';$('.bottom').hidden=false;}if(game.role==='hunter'&&rules.tinnitus)$('#threat').textContent='耳鸣 · 附近有求生者';}
 }

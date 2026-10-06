@@ -1,0 +1,12 @@
+import {distance} from './game.js';
+export const lockerLocations=[{x:20,y:76},{x:168,y:134},{x:76,y:95},{x:123,y:100}];
+export class MapInteractions{
+  constructor(){this.lockers=lockerLocations.map((p,id)=>({...p,id,occupant:null}));this.windowLocks=new Map();this.hunterVault=null;this.lastHunterInteract=false;this.lastSurvivorInteract=new Map();}
+  action(match,id,action,index){const a=match.actors.find(a=>a.id===id&&!a.eliminated&&!a.escaped);if(!a)return false;const hunter=a.role==='hunter',pos=hunter?a.sim.hunter:a.sim.player;
+    if(action==='locker'){const locker=this.lockers[index];if(!locker||distance(pos,locker)>3||a.sim.attack||a.sim.stun>0&&hunter)return false;if(hunter){if(locker.occupant){const victim=match.actors.find(v=>v.id===locker.occupant);if(victim){victim.hidden=null;victim.sim.health=0;victim.sim.player.health=0;match.chairSystem.carried=victim.id;}locker.occupant=null;return true;}return false;}if(a.sim.health<=0||a.seated!=null||match.chairSystem.carried===id)return false;if(a.hidden!=null){this.lockers[a.hidden].occupant=null;a.hidden=null;return true;}if(locker.occupant)return false;a.sim.stopDecode();locker.occupant=id;a.hidden=index;return true;}
+    if(action==='hunter_vault'&&hunter){const w=match.world.windows[index];if(!w||distance(pos,w)>3||this.hunterVault||a.sim.attack||a.sim.stun>0||match.chairSystem.carried)return false;const to={x:w.x,y:w.y+(pos.y<w.y?1.8:-1.8)};if(a.sim.blocked(to.x,to.y,.85))return false;this.hunterVault={index,from:{...pos},to,time:0};return true;}return false;
+  }
+  update(match,dt){for(const [id,time] of this.windowLocks){if(time<=dt)this.windowLocks.delete(id);else this.windowLocks.set(id,time-dt);}for(const a of match.actors){a.sim.windowLocks=this.windowLocks;a.sim.windowList=match.world.windows;if(a.hidden!=null){const input=a.input;input.x=0;input.y=0;input.dash=false;input.skill=false;}}const hunter=match.actors.find(a=>a.role==='hunter');if(this.hunterVault){hunter.input={x:0,y:0};hunter.sim.stun=Math.max(hunter.sim.stun,.06);const v=this.hunterVault;v.time=Math.min(1.8,v.time+dt);const t=v.time/1.8,s=t*t*(3-2*t);Object.assign(hunter.sim.hunter,{x:v.from.x+(v.to.x-v.from.x)*s,y:v.from.y+(v.to.y-v.from.y)*s});if(t>=1){this.windowLocks.set(v.index,20);this.hunterVault=null;}}
+  }
+  snapshot(){return {lockers:this.lockers,windowLocks:Object.fromEntries(this.windowLocks),hunterVault:this.hunterVault};}
+}
