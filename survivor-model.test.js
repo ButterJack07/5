@@ -44,4 +44,18 @@ test('creates and switches detailed ID5 style ragdoll models for survivors', asy
   // Switch to Perfumer
   s.updateCharacter('perfumer');
   assert.equal(s.group.userData.charId, 'perfumer');
+
+  // Test downed pose (crouched holding head)
+  let legRotationSet = false, armRotationSet = false;
+  s.legs[0].rotation = { set: (x, y, z) => { if (x < -1.2) legRotationSet = true; } };
+  s.armL.rotation = { set: (x, y, z) => { if (x < -1.5) armRotationSet = true; } };
+  s.animatePose({ health: 0, moving: true, time: 1 });
+  assert.equal(legRotationSet, true);
+  assert.equal(armRotationSet, true);
+
+  // Test injured pose (clutching abdomen with limp)
+  let injuredArmSet = false;
+  s.armL.rotation = { set: (x, y, z) => { if (x < -0.5 && x > -1.0) injuredArmSet = true; } };
+  s.animatePose({ health: 1, moving: true, time: 1 });
+  assert.equal(injuredArmSet, true);
 });

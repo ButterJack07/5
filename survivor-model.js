@@ -136,7 +136,7 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     const accentMat = new T.MeshStandardMaterial({ color: accentColor, roughness: 0.8 });
 
     // Torso (tailored buttoned cloth jacket)
-    cube(0.85, 1.15, 0.58, mainMat, group, 0, 1.45, 0);
+    const torso = cube(0.85, 1.15, 0.58, mainMat, group, 0, 1.45, 0);
     // Button row down jacket front
     for (const by of [1.6, 1.4, 1.2]) {
       cube(0.06, 0.06, 0.04, accentMat, group, 0, by, 0.3);
@@ -215,9 +215,96 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     }
 
     group.userData.legs = legs;
+    group.userData.legL = legL;
+    group.userData.legR = legR;
     group.userData.armL = armL;
     group.userData.armR = armR;
+    group.userData.torso = torso;
+    group.userData.headG = headG;
     group.userData.charId = charId;
+  }
+
+  function animatePose({ health = 2, moving = false, time = 0, vault = null, sprint = false }) {
+    const { torso, headG, armL, armR, legL, legR } = group.userData;
+    if (!torso || !headG || !armL || !armR || !legL || !legR) return;
+
+    if (vault) {
+      const t = vault.elapsed / vault.duration;
+      torso.position.set(0, 1.45, 0);
+      torso.rotation.set(-0.4, 0, 0);
+      headG.position.set(0, 2.35, 0);
+      headG.rotation.set(-0.2, 0, 0);
+      armL.position.set(-0.55, 1.4, 0);
+      armR.position.set(0.55, 1.4, 0);
+      armL.rotation.set(-1.2, 0, -0.3);
+      armR.rotation.set(-1.2, 0, 0.3);
+      legL.rotation.set(-1.4 * Math.sin(t * Math.PI), 0, 0);
+      legR.rotation.set(0.8 * Math.sin(t * Math.PI), 0, 0);
+      return;
+    }
+
+    if (health <= 0) {
+      // Downed: crouched on ground holding head with both arms (抱头蹲下与爬行)
+      torso.position.set(0, 0.85 + (moving ? Math.sin(time * 5) * 0.04 : 0), 0);
+      torso.rotation.set(0.65, 0, moving ? Math.sin(time * 5) * 0.12 : 0);
+      headG.position.set(0, 1.35, 0.45);
+      headG.rotation.set(0.55, 0, 0);
+
+      // Crouched knees folded underneath on the ground
+      legL.position.set(-0.24, 0.28, -0.15);
+      legR.position.set(0.24, 0.28, -0.15);
+      legL.rotation.set(-1.45 + (moving ? Math.sin(time * 5) * 0.25 : 0), 0, 0);
+      legR.rotation.set(-1.45 - (moving ? Math.sin(time * 5) * 0.25 : 0), 0, 0);
+
+      // Arms raised clinging to head protecting ears / skull
+      armL.position.set(-0.32, 1.55, 0.35);
+      armR.position.set(0.32, 1.55, 0.35);
+      armL.rotation.set(-1.85, 0.45, 0.7 + (moving ? Math.sin(time * 5) * 0.08 : 0));
+      armR.rotation.set(-1.85, -0.45, -0.7 - (moving ? Math.sin(time * 5) * 0.08 : 0));
+      return;
+    }
+
+    if (health === 1) {
+      // Injured: clutching wounded abdomen with limping/stumbling gait (捂肚踉跄)
+      torso.position.set(0, 1.45, 0);
+      torso.rotation.set(0.25, 0, moving ? Math.sin(time * 6.5) * 0.18 : 0.08); // hunch forward & wobble
+      headG.position.set(0, 2.35, 0);
+      headG.rotation.set(0.18, 0, moving ? Math.sin(time * 6.5) * 0.1 : 0);
+
+      // Left hand firmly pressing against wounded stomach
+      armL.position.set(-0.35, 1.32, 0.22);
+      armL.rotation.set(-0.85, 0.4, 0.55);
+
+      // Right arm dangling and unsteadily swaying to maintain balance
+      armR.position.set(0.55, 1.4, 0);
+      armR.rotation.set(moving ? Math.sin(time * 6.5) * 0.45 : 0.1, 0, 0.2);
+
+      // Limping staggered walk
+      legL.position.set(-0.24, 0.48, 0);
+      legR.position.set(0.24, 0.48, 0);
+      const limpPhase = time * 6.5;
+      legL.rotation.set(moving ? Math.sin(limpPhase) * 0.65 : 0, 0, 0); // Good step
+      legR.rotation.set(moving ? Math.sin(limpPhase + 0.6) * 0.35 : 0, 0, 0); // Dragged stumbling leg
+      return;
+    }
+
+    // Healthy (health >= 2)
+    torso.position.set(0, 1.45, 0);
+    torso.rotation.set(0, 0, 0);
+    headG.position.set(0, 2.35, 0);
+    headG.rotation.set(0, 0, 0);
+
+    armL.position.set(-0.55, 1.4, 0);
+    armR.position.set(0.55, 1.4, 0);
+    legL.position.set(-0.24, 0.48, 0);
+    legR.position.set(0.24, 0.48, 0);
+
+    const walkSpeed = sprint ? 20 : 10;
+    const walkPhase = time * walkSpeed;
+    legL.rotation.set(moving ? Math.sin(walkPhase) * 0.65 : 0, 0, 0);
+    legR.rotation.set(moving ? -Math.sin(walkPhase) * 0.65 : 0, 0, 0);
+    armL.rotation.set(moving ? -Math.sin(walkPhase) * 0.5 : 0, 0, 0);
+    armR.rotation.set(moving ? Math.sin(walkPhase) * 0.5 : 0, 0, 0);
   }
 
   updateCharacter(initialId);
@@ -227,6 +314,7 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     get legs() { return group.userData.legs || legs; },
     get armL() { return group.userData.armL || armL; },
     get armR() { return group.userData.armR || armR; },
+    animatePose,
     updateCharacter
   };
 }
