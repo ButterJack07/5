@@ -50,30 +50,47 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     headG.position.set(0, 2.35, 0);
     root.add(headG);
 
-    // Ragdoll rounded head
-    const face = sphere(0.46, 12, skinMat, headG, 0, 0, 0);
-    face.scale.set(1.05, 0.95, 1);
+    // Realistic proportioned human head with defined chin and jawline
+    const cranium = sphere(0.42, 16, skinMat, headG, 0, 0.05, -0.02);
+    cranium.scale.set(0.95, 1.05, 1.02);
+    // Sculpted jaw and chin taper
+    const jaw = cone(0.32, 0.45, 12, skinMat, headG, 0, -0.22, 0.1);
+    jaw.rotation.x = Math.PI;
 
-    // Iconic ID5 Button Eyes with cross stitches
+    // Realistic expressive eyes: white sclera + colored iris + pupil + upper eyelid crease
+    const scleraMat = new T.MeshStandardMaterial({ color: 0xf5f5f3, roughness: 0.3 });
+    const irisMat = new T.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.2 });
+    const pupilMat = new T.MeshBasicMaterial({ color: 0x050505 });
+    const browMat = new T.MeshStandardMaterial({ color: 0x2b1d14, roughness: 0.9 });
+    const lipMat = new T.MeshStandardMaterial({ color: 0xb57868, roughness: 0.5 });
+
     for (const side of [-1, 1]) {
-      const eyeX = side * 0.2;
-      const eyeY = 0.05;
-      const eyeZ = 0.42;
+      const eyeX = side * 0.18;
+      const eyeY = 0.04;
+      const eyeZ = 0.38;
 
-      // Dark button rim
-      const btn = cyl(0.12, 0.12, 0.04, 12, eyeMat, headG, eyeX, eyeY, eyeZ);
-      btn.rotation.x = Math.PI / 2;
+      // Eyeball
+      const eyeG = new T.Group();
+      eyeG.position.set(eyeX, eyeY, eyeZ);
+      headG.add(eyeG);
 
-      // Button stitch hole cross (+)
-      cube(0.14, 0.02, 0.02, stitchMat, headG, eyeX, eyeY, eyeZ + 0.03);
-      cube(0.02, 0.14, 0.02, stitchMat, headG, eyeX, eyeY, eyeZ + 0.03);
+      sphere(0.09, 10, scleraMat, eyeG, 0, 0, 0);
+      cyl(0.055, 0.055, 0.03, 10, irisMat, eyeG, 0, 0, 0.075).rotation.x = Math.PI / 2;
+      cyl(0.026, 0.026, 0.04, 8, pupilMat, eyeG, 0, 0, 0.08).rotation.x = Math.PI / 2;
+
+      // Realistic arched eyebrow
+      const brow = cube(0.18, 0.035, 0.04, browMat, headG, eyeX, eyeY + 0.14, eyeZ + 0.03);
+      brow.rotation.z = -side * 0.15;
     }
 
-    // Ragdoll stitched mouth
-    cube(0.18, 0.02, 0.02, stitchMat, headG, 0, -0.22, 0.41);
-    for (const sx of [-0.07, 0, 0.07]) {
-      cube(0.02, 0.06, 0.02, stitchMat, headG, sx, -0.22, 0.42);
-    }
+    // Realistic sculpted nose with bridge and nostrils
+    const noseBridge = cube(0.06, 0.18, 0.1, skinMat, headG, 0, 0, 0.44);
+    noseBridge.rotation.x = -0.2;
+    sphere(0.05, 8, skinMat, headG, 0, -0.1, 0.46);
+
+    // Natural shaped lips with philtrum
+    cube(0.16, 0.035, 0.05, lipMat, headG, 0, -0.22, 0.41);
+    cube(0.12, 0.03, 0.05, lipMat, headG, 0, -0.26, 0.4);
 
     return headG;
   }
@@ -224,9 +241,30 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     group.userData.charId = charId;
   }
 
-  function animatePose({ health = 2, moving = false, time = 0, vault = null, sprint = false }) {
+  function animatePose({ health = 2, moving = false, time = 0, vault = null, sprint = false, seated = false }) {
     const { torso, headG, armL, armR, legL, legR } = group.userData;
     if (!torso || !headG || !armL || !armR || !legL || !legR) return;
+
+    if (seated) {
+      // Seated on Rocket Chair: bound with thick ropes, thighs flat on chair base, shins dangling down, hands bound behind chair back
+      torso.position.set(0, 1.25, 0.05);
+      torso.rotation.set(-0.12, 0, Math.sin(time * 3) * 0.03); // struggle wriggling
+      headG.position.set(0, 2.15, 0.08);
+      headG.rotation.set(0.15, 0, Math.sin(time * 3) * 0.05);
+
+      // Thighs level with chair seat, shins dangling downward at 90 degrees
+      legL.position.set(-0.24, 0.72, 0.35);
+      legR.position.set(0.24, 0.72, 0.35);
+      legL.rotation.set(-1.52, 0, -0.05 + Math.sin(time * 4) * 0.08); // kicking feet in struggle
+      legR.rotation.set(-1.52, 0, 0.05 - Math.sin(time * 4) * 0.08);
+
+      // Arms wrenched backwards and secured tight behind the chair backrest
+      armL.position.set(-0.45, 1.22, -0.25);
+      armR.position.set(0.45, 1.22, -0.25);
+      armL.rotation.set(0.85, 0, 0.4);
+      armR.rotation.set(0.85, 0, -0.4);
+      return;
+    }
 
     if (vault) {
       const t = vault.elapsed / vault.duration;

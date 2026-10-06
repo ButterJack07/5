@@ -12,6 +12,7 @@ const MockThree = {
   SphereGeometry: class {},
   ConeGeometry: class {},
   MeshStandardMaterial: class {},
+  MeshBasicMaterial: class {},
   Mesh: class {
     constructor() {
       this.children = [];
@@ -58,4 +59,12 @@ test('creates and switches detailed ID5 style ragdoll models for survivors', asy
   s.armL.rotation = { set: (x, y, z) => { if (x < -0.5 && x > -1.0) injuredArmSet = true; } };
   s.animatePose({ health: 1, moving: true, time: 1 });
   assert.equal(injuredArmSet, true);
+
+  // Test seated pose on rocket chair
+  let seatedArmBehind = false, seatedLegBent = false;
+  s.armL.rotation = { set: (x, y, z) => { if (x > 0.5) seatedArmBehind = true; } };
+  s.legs[0].rotation = { set: (x, y, z) => { if (x < -1.4) seatedLegBent = true; } };
+  s.animatePose({ health: 1, moving: false, time: 1, seated: true });
+  assert.equal(seatedArmBehind, true);
+  assert.equal(seatedLegBent, true);
 });
