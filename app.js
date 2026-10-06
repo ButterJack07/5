@@ -159,9 +159,9 @@ function renderLobby(roster,fillBots,bots=[]){
     card.className='playerCard'+(p.id===myLanId?' isMe':'');
     const isHunter=p.role==='hunter';
     const name=document.createElement('span');name.textContent=p.nickname+(p.isHost?' (房主)':'')+(p.id===myLanId?' [你]':'');const role=document.createElement('span');role.className='pRole '+(isHunter?'hunter':'survivor');role.textContent=(isHunter?'监管者':'求生者')+': '+p.character;card.append(name,role);
-    rosterEl.appendChild(card);
+    const row=document.createElement('div');row.className='seatRow';row.appendChild(card);rosterEl.appendChild(row);
     card.onclick=()=>{if(roomPhase!=='seats')return;if(p.id&&p.id!==myLanId)return;lanSocket.send(JSON.stringify({type:'select_slot',slot}));};
-    if(!p.id&&roster.find(p=>p.id===myLanId)?.isHost){const toggle=document.createElement('button');toggle.textContent=bots.includes(slot)?'取消人机':'填充人机';toggle.onclick=()=>lanSocket.send(JSON.stringify({type:'slot_bot',slot}));rosterEl.appendChild(toggle);}
+    if(!p.id){const label=document.createElement('label');label.className='seatBotToggle';const tick=document.createElement('input');tick.type='checkbox';tick.checked=bots.includes(slot);tick.disabled=roomPhase!=='seats'||!roster.find(p=>p.id===myLanId)?.isHost;tick.setAttribute('aria-label',`${slot===4?'监管者':'求生者 '+(slot+1)}位置添加人机`);tick.onchange=()=>{tick.disabled=true;lanSocket.send(JSON.stringify({type:'slot_bot',slot}));};const text=document.createElement('span');text.textContent='添加人机';label.append(tick,text);row.appendChild(label);}
   }
 
   const me=roster.find(p=>p.id===myLanId);
