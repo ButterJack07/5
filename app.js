@@ -21,7 +21,7 @@ const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第�
 let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[];
 let sharedMatch=false;
 let chairState=null;
-let teamActors=[];
+let teamActors=[];let lastShockTick=0,shockUntil=0;
 $('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;game.reset();$('#matchResults').hidden=true;showOverlay();return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'return_room'}));};
 let playMode='single',localMatch=null;
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';});
@@ -494,6 +494,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
     }
 
     if(three.player.updateCharacter)three.player.updateCharacter(game.characterId);
+    const ownPose=chairState?.actors?.find(a=>a.id===myLanId);player.animatePose({health:game.health,moving:Math.hypot(input.x,input.y)>.1,time,vault:game.vault,seated:ownPose?.seated!=null,carried:chairState?.carried===myLanId});
     generators.forEach((m,i)=>{
       const done=(game.generators[i]?.p||0)>=100;
       m.material.color.set(done?0x68f070:0xffcc00);
@@ -550,6 +551,7 @@ function broadcastLocalPosition(){
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  const shock=chairState?.interactions?.shock;if(shock&&shock.tick!==lastShockTick){lastShockTick=shock.tick;shockUntil=time+2.5;}$('#terrorShock').hidden=shockUntil===0||time>shockUntil;
   quickRoot.hidden=game.role!=='survivor'||game.status!=='playing'||!lanRoomCode; if(roomPhase==='characters'&&!$('#roomLobby').hidden)$('#playerCountText').textContent='选角剩余 '+preparationRemaining(roomDeadline)+' 秒';if(chairState?.result&&chairState.scores){let list=$('#resultScores');if(!list){list=document.createElement('div');list.id='resultScores';$('#matchResults').insertBefore(list,$('#returnRoom'));}list.replaceChildren();for(const p of chairState.scores){const row=document.createElement('p');row.textContent=`${p.nickname||p.character} · ${p.result} · 演绎分 ${p.score}`;list.appendChild(row);}}
   const mi=chairState?.interactions,me=chairState?.actors?.find(a=>a.id===myLanId),pos=game.controlled;let action=null,index=-1;if(mi){index=mi.lockers.findIndex(l=>distance(l,pos)<3);if(index>=0)action='locker';if(game.role==='hunter'&&index<0){index=game.windows.findIndex(w=>distance(w,pos)<3);if(index>=0)action='hunter_vault';}$('#mapAction').hidden=!action||game.status!=='playing';$('#mapAction').textContent=action==='hunter_vault'?'翻窗 / 封窗':game.role==='hunter'?'搜索柜子':me?.hidden!=null?'离开柜子':'躲入柜子';$('#mapAction').onclick=()=>sendAction(action,index);}else $('#mapAction').hidden=true;
   const rules=chairState?.rules;if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';if(game.role==='hunter'&&rules.detention>0)game.message='挽留 '+Math.ceil(rules.detention)+' 秒';const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed')game.message='按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';if(state==='carried')game.message='按住交互挣扎 '+Math.floor(rules.struggle*100)+'%';}

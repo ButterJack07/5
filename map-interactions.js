@@ -8,5 +8,5 @@ export class MapInteractions{
   }
   update(match,dt){for(const [id,time] of this.windowLocks){if(time<=dt)this.windowLocks.delete(id);else this.windowLocks.set(id,time-dt);}for(const a of match.actors){a.sim.windowLocks=this.windowLocks;a.sim.windowList=match.world.windows;if(a.hidden!=null){const input=a.input;input.x=0;input.y=0;input.dash=false;input.skill=false;}}const hunter=match.actors.find(a=>a.role==='hunter');if(this.hunterVault){hunter.input={x:0,y:0};hunter.sim.stun=Math.max(hunter.sim.stun,.06);const v=this.hunterVault;v.time=Math.min(1.8,v.time+dt);const t=v.time/1.8,s=t*t*(3-2*t);Object.assign(hunter.sim.hunter,{x:v.from.x+(v.to.x-v.from.x)*s,y:v.from.y+(v.to.y-v.from.y)*s});if(t>=1){this.windowLocks.set(v.index,20);this.hunterVault=null;}}
   }
-  snapshot(){return {lockers:this.lockers,windowLocks:Object.fromEntries(this.windowLocks),hunterVault:this.hunterVault};}
+  snapshot(){return {shock:this.shock,lockers:this.lockers,windowLocks:Object.fromEntries(this.windowLocks),hunterVault:this.hunterVault};}
 }
