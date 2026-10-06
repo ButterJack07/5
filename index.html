@@ -3,6 +3,8 @@
 <body><main id="stage" tabindex="-1"><canvas id="flat"></canvas><div id="webgl"></div>
 <div class="hud" id="objectiveHud"><span id="count">电力 0 / 3</span><span id="time">04:00</span></div>
 <button id="settingsButton" aria-label="打开游戏设置" aria-expanded="false">☰</button>
+<section id="teamStatus" aria-label="求生者实时状态" hidden></section>
+<section id="matchResults" hidden><h2 id="resultTitle">对局结束</h2><p id="resultDetails"></p><button id="returnRoom">返回房间 / 选角</button></section>
 <section id="settings" hidden><h2>演练设置</h2><p id="cameraHint">3D 近距跟随 · 拖动画面左右、上下调整镜头</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · E 交互 · Q 角色技能<br>医生按 Q 自愈 · 点击密码机旁按钮破译<br>上下视角范围：向上 17° / 向下 46°</small></section>
 <button id="editLayout" hidden>调整手机布局</button><div id="layoutToolbar" hidden><span id="layoutSelected">点选并拖动控件</span><label>大小 <input id="layoutSize" type="range" min="60" max="160" value="100" aria-label="控件大小"><b id="layoutSizeValue">100%</b></label><button id="resetLayout">恢复默认</button><button id="saveLayout">保存布局</button></div>
 <div id="message" role="status"></div>

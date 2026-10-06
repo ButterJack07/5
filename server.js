@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {networkInterfaces} from 'node:os';
 import {SharedMatch} from './match.js';
 
-const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js']);
+const files=new Set(['index.html','style.css','app.js','game.js','input.js','map.js','layout.js','architecture.js','match.js','hunter-ai.js','chairs.js','team-status.js']);
 const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'text/javascript; charset=utf-8',json:'application/json'};
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
@@ -14,7 +14,7 @@ class WSServer {
   constructor(server){
     this.clients=new Set();
     this.rooms=new Map(); // roomCode -> { players: Set, state: {} }
-    this.timer=setInterval(()=>{for(const [code,r] of this.rooms){if(!r.match)continue;r.match.update(.05);this.broadcast(code,{type:'world_state',state:r.match.snapshot()});}},50);
+    this.timer=setInterval(()=>{for(const [code,r] of this.rooms){if(!r.match)continue;r.match.update(.05);this.broadcast(code,{type:'world_state',state:{...r.match.snapshot(),chairState:r.match.chairSnapshot()}});}},50);
     server.on('close',()=>clearInterval(this.timer));
     server.on('upgrade',(req,socket)=>{
       if(this.clients.size>=40||!['/ws','/'].includes(req.url)){socket.destroy();return;}
@@ -98,6 +98,7 @@ class WSServer {
   }
 
   handleMessage(client,msg){
+    if(msg.type==='return_room'&&client.room){const r=this.rooms.get(client.room);if(!r||r.match?.status!=='finished')return;r.match=null;r.matchStarted=false;r.phase='seats';this.broadcast(client.room,{type:'returned_room'});this.roomState(client.room);this.notifyLobby();return;}
     if(msg.type==='list_rooms'){this.send(client,{type:'rooms_list',rooms:this.listRooms()});return;}
     if(msg.type==='leave_room'){this.leave(client);this.send(client,{type:'room_left'});return;}
     if(msg.type==='create_room'||msg.type==='join_room'){

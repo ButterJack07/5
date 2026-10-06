@@ -4,6 +4,8 @@ import {roofs} from './map.js';
 import {enableLayoutEditor} from './layout.js';
 import {buildArchitecture} from './architecture.js';
 import {SharedMatch} from './match.js';
+import {chairLocations} from './chairs.js';
+import {renderTeam} from './team-status.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
@@ -12,6 +14,9 @@ const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第�
 // LAN Multiplayer Networking State
 let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[];
 let sharedMatch=false;
+let chairState=null;
+let teamActors=[];
+$('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;game.reset();$('#matchResults').hidden=true;showOverlay();return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'return_room'}));};
 let playMode='single',localMatch=null;
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';});
 let roomPhase='seats';
@@ -91,7 +96,8 @@ function initLANMultiplayer(){
     lanSocket.onmessage=e=>{
       try{
         const msg=JSON.parse(e.data);
-        if(msg.type==='world_state'){applyWorld(msg.state);}
+        if(msg.type==='returned_room'){sharedMatch=false;game.reset();$('#matchResults').hidden=true;$('#overlay').style.display='flex';}
+        else if(msg.type==='world_state'){teamActors=msg.state.actors.filter(a=>a.role==='survivor');chairState=msg.state.chairState;applyWorld(msg.state);}
         else if(msg.type==='rooms_list'){renderRooms(msg.rooms||[]);}
         else if(msg.type==='room_left'){lanRoomCode=null;myLanId=null;lobby.hidden=true;$('#lanHall').hidden=false;$('#start').hidden=false;}
         else if(msg.type==='room_joined'||msg.type==='roster_update'){
@@ -312,7 +318,7 @@ let drag=null;$('#stage').addEventListener('pointerdown',e=>{if(e.target===three
 function settings(open){$('#settings').hidden=!open;$('#settingsButton').setAttribute('aria-expanded',String(open));clearInput();if(!open)$('#stage').focus({preventScroll:true});}
 $('#settingsButton').onclick=()=>settings($('#settings').hidden);$('#closeSettings').onclick=()=>settings(false);
 window.addEventListener('keydown',e=>{if(e.key==='Escape')settings($('#settings').hidden);});
-function begin(){if(!three)return;if(game.status!=='ready')game.reset();sharedMatch=false;localMatch=null;game.start();if(playMode==='ai'){myLanId='local-player';localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}],true);sharedMatch=true;survivorMeshes.forEach(m=>three.scene.remove(m.group));survivorMeshes.clear();applyWorld(localMatch.snapshot());}$('#overlay').style.display='none';settings(false);clearInput();$('#stage').focus({preventScroll:true});}
+function begin(){if(!three)return;if(game.status!=='ready')game.reset();sharedMatch=false;localMatch=null;game.start();myLanId='local-player';localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}],playMode==='ai');if(playMode==='single'&&game.role==='hunter')localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:'hunter',character:game.hunterId},{id:'bot-single',nickname:'人机求生者',role:'survivor',character:'mercenary',bot:true}],false);sharedMatch=true;survivorMeshes.forEach(m=>three.scene.remove(m.group));survivorMeshes.clear();chairState=localMatch.chairSnapshot();applyWorld(localMatch.snapshot());$('#overlay').style.display='none';settings(false);clearInput();$('#stage').focus({preventScroll:true});}
 $('#start').onclick=begin;$('#restart').onclick=()=>{game.reset();settings(false);clearInput();showOverlay();};$('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('#stage').requestFullscreen();settings(false);}catch{game.message='当前浏览器不支持全屏，请横屏体验';}};
 function showOverlay(){const status=game.status;$('#overlay').style.display='flex';$('#overlay h2').textContent=status==='won'?'成功逃脱':status==='lost'?'演练结束':'沉船林地';$('#overlay p:not(.eyebrow)').innerHTML=status==='ready'?'破译三台密码机，开启闸门逃脱。<br>选择角色，利用建筑窗口和木板脱离追击。':game.message+'<br>可选择不同角色再试一次。';$('#start').textContent=status==='ready'?'进入演练 ↗':'再试一次 ↗';characterMenu();}
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=async()=>{let next=btn.dataset.view;if(next==='third'&&!three){if(loading)return;loading=true;game.message='正在加载 3D 渲染器…';try{await setupThree();}catch(e){game.message='3D 加载失败：请检查网络和 WebGL 支持；2D / 2.5D 仍可玩';$('#cameraHint').textContent=game.message;console.error(e);loading=false;return;}loading=false;}view=next;clearInput();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b===btn));canvas.style.display=view==='third'?'none':'block';$('#webgl').style.display=view==='third'?'block':'none';$('#mode').textContent=names[view];$('#cameraHint').textContent=view==='third'?'拖动画面旋转镜头 · 移动随镜头方向':'可随时切换视角，保留对局';resize();settings(false);});
@@ -340,6 +346,7 @@ cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,
 cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
 walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall&&!w.redChurchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
 buildArchitecture(T,scene);
+for(const [i,c] of chairLocations.entries()){const group=new T.Group();group.name='chair-'+i;group.position.set(c.x,0,c.y);scene.add(group);cube(0,.8,0,1.5,.3,1.2,0x843b46,group);cube(0,1.8,-.45,1.5,2,.25,0x843b46,group);for(const side of [-1,1]){cube(side*.8,1.2,0,.15,.2,1.4,0x6d5b45,group);mesh(new T.CylinderGeometry(.25,.25,2.5,10),0x665d42,side*1.05,1.8,-.45,group);mesh(new T.ConeGeometry(.3,.7,10),0x8e3039,side*1.05,3.4,-.45,group);}cube(0,1.9,-.25,1.6,.18,.12,0x372b28,group);const clock=mesh(new T.CylinderGeometry(.38,.38,.12,12),0xc7b57c,0,3,-.3,group);clock.rotation.x=Math.PI/2;}
 buildOutdoorDetailing(T,scene);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
 game.exits.forEach(e=>{cube(e.x,3.5,e.y-6,1.5,7,2,0x7a826d);cube(e.x,3.5,e.y+6,1.5,7,2,0x7a826d);const m=cube(e.x,2.5,e.y,1,5,10,0x646e50);m.name='escapeGate';m.userData.exit=e;});
@@ -479,7 +486,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
     });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
 let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
 let lastNetworkInput=0;
-function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);applyWorld(localMatch.snapshot());}
+function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);chairState=localMatch.chairSnapshot();const state=localMatch.snapshot();teamActors=state.actors.filter(a=>a.role==='survivor');applyWorld(state);}
 setInterval(tickLocalMatch,50);
 window.addEventListener('error',event=>{const box=$('#message');box.textContent='游戏运行错误：'+event.message;box.classList.add('visible');console.error(event.error);});
 
@@ -521,6 +528,9 @@ function broadcastLocalPosition(){
 }
 let previousMessage='',messageUntil=0;
 function updateHUD(){
+  if(sharedMatch&&chairState?.result){$('#matchResults').hidden=false;$('#resultTitle').textContent=chairState.result.winner==='draw'?'平局':chairState.result.winner==='survivors'?'求生者获胜':'监管者获胜';$('#resultDetails').textContent=`逃脱 ${chairState.result.escaped} 人 · 淘汰 ${chairState.result.eliminated} 人`;game.status='playing';}
+  const teamRoot=$('#teamStatus');teamRoot.hidden=game.status==='ready';if(!teamRoot.hidden){const actors=sharedMatch?teamActors:[{id:'single',nickname:game.character.name,health:game.health}];renderTeam(teamRoot,actors,chairState);}
+  if(chairState&&sharedMatch){const me=chairState.actors.find(a=>a.id===myLanId);if(me?.seated!=null){game.message='上椅淘汰进度 '+Math.round(chairState.chairs[me.seated].progress/60*100)+'%';}else if(me?.eliminated)game.message='已淘汰';else if(game.role==='hunter')game.message=chairState.carried?'牵气球中 · 靠近椅子按 E 挂椅':'靠近倒地求生者按 E 牵气球';}
   if(layoutEditing()){clearInput();$('#interact').disabled=false;$('#dash').disabled=false;return;}
   if(view==='third'&&three&&game.role==='hunter'){const a=game.hunter;three.camera.position.set(a.x+Math.sin(cameraAngle)*12,10,a.y+Math.cos(cameraAngle)*12);three.camera.lookAt(a.x,2,a.y);three.pallets.forEach((m,i)=>m.visible=!game.pallets[i].broken);three.renderer.render(three.scene,three.camera);}
   const near=game.nearby,close=near&&distance(near,game.player)<6,repairing=close&&['generator','exit'].includes(near.type),decode=game.decoding;
@@ -596,7 +606,8 @@ function updateHUD(){
     three.renderer.render(three.scene,three.camera);
   }
   if(three){three.gate.visible=false;for(const m of three.scene.children){if(m.name==='upperFloor'||m.name==='buildingRoof'){m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;}if(m.name==='escapeGate'){const e=game.exits.find(e=>e.x===m.userData.exit.x);m.position.y=2.5+(e?.p||0)/100*6;}}updateCamera();three.renderer.render(three.scene,three.camera);}
-  if(['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
+  if(sharedMatch&&chairState&&!chairState.result){const c=chairState.chairs.find(c=>c.occupant&&distance(c,game.player)<3),rescue=chairState.rescues.find(r=>r.id===myLanId);if(game.role==='survivor'&&c&&game.health>0){$('#interact').textContent='救人';$('#prompt').textContent=rescue?'救援中 '+Math.floor(rescue.time*100)+'% · 受击会震慑':'点击 E / 交互救人（1秒）';$('.bottom').hidden=false;}if(game.role==='hunter'){const near=chairLocations.some(c=>distance(c,game.hunter)<3);$('#interact').textContent=chairState.carried&&near?'挂椅':chairState.carried?'牵气球':'牵起';}}
+  if(!sharedMatch&&['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
 }
 function updateCamera(){const {T,camera,scene}=three,a=game.controlled,target=new T.Vector3(a.x,(a.z||0)+2.25,a.y),length=5.2,offset=new T.Vector3(Math.sin(cameraAngle)*Math.cos(cameraPitch)*length,Math.sin(cameraPitch)*length,Math.cos(cameraAngle)*Math.cos(cameraPitch)*length),direction=offset.clone().normalize();const ray=new T.Raycaster(target,direction,.1,length+.3);const blockers=scene.children.filter(m=>m.isMesh&&m.visible&&!['hunterRedLight','skillSmoke'].includes(m.name)&&!three.pallets.includes(m)&&m!==three.gate&&m.material?.opacity>=.9);const hit=ray.intersectObjects(blockers,false)[0];const distance=hit?Math.max(.45,Math.min(length,hit.distance-.3)):length;camera.position.copy(target).addScaledVector(direction,distance);camera.position.y=Math.max((a.z||0)+.3,camera.position.y);camera.lookAt(target);}
 async function loadGame(){canvas.style.display='none';$('#webgl').style.display='block';$('#start').disabled=true;$('#start').textContent='正在加载 3D…';try{await setupThree();$('#start').disabled=false;$('#start').textContent='开始演练';}catch(error){console.error(error);$('#overlay p:not(.eyebrow)').textContent='3D 加载失败，请检查网络或浏览器 WebGL 支持。';$('#start').textContent='重试加载';$('#start').disabled=false;$('#start').onclick=async()=>{await loadGame();if(three)$('#start').onclick=begin;};}}

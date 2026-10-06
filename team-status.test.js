@@ -1,0 +1,4 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {survivorStatus} from './team-status.js';
+test('team status distinguishes chair balloon eliminated escaped and wounds',()=>{const a={id:'a',health:0},s={chairs:[{id:0,progress:30}],actors:[{id:'a',seated:0}],carried:null};assert.deepEqual(survivorStatus(a,s),{kind:'seated',label:'上椅',progress:.5});s.actors[0].seated=null;s.carried='a';assert.equal(survivorStatus(a,s).kind,'carried');s.actors[0].eliminated=true;assert.equal(survivorStatus(a,s).kind,'eliminated');assert.equal(survivorStatus({id:'b',health:1,escaped:true},s).kind,'escaped');assert.equal(survivorStatus({id:'b',health:1},s).kind,'injured');assert.equal(survivorStatus({id:'b',health:0},s).kind,'downed');assert.equal(survivorStatus({id:'b',health:2},s).kind,'healthy');});
