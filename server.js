@@ -11,6 +11,7 @@ const mime={html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',js:'te
 files.add('map-interactions.js');
 files.add('scoring.js');
 files.add('survivor-ai.js');
+files.add('pathfinding.js');
 files.add('terror-shock.js');
 files.add('room-flow.js');
 

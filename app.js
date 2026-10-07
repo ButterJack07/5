@@ -207,40 +207,29 @@ function beginLANMatch(config){
   $('#overlay').style.display='none';
   game.reset();
   game.start();
-  sharedMatch=true;settings(false);clearInput();survivorMeshes.forEach(m=>three?.scene.remove(m.group));survivorMeshes.clear();return;
-
-  // Clear previous mesh instances
+  sharedMatch=true;
+  settings(false);
+  clearInput();
   survivorMeshes.forEach(m=>three?.scene.remove(m.group));
   survivorMeshes.clear();
 
-    if(three){
-    // Spawn 3D meshes for all other survivors (human peers and AI bots) in the same map
-    game.survivors.forEach(s=>{
-      if(s===game.player)return; // Local player already has three.player
-      const cObj=character(0x486b56,false);
-      // Billboard nickname tag above head
-      const cv=document.createElement('canvas');cv.width=256;cv.height=64;
-      const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
-      cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle='#d6ed91';
-      cx.fillText(s.nickname||'求生者',128,42);
-      const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
-      sp.scale.set(3,.75,1);sp.position.set(0,3.8,0);
-      cObj.group.add(sp);
-      survivorMeshes.set(s.id||s.nickname,cObj);
-    });
-
-    // Check hunter setup
-    if(!game.hunter.isLocal&&!game.hunter.isAi){
-      // Another human is the hunter
-      game.aiHunterDisabled=true;
-    }else{
-      game.aiHunterDisabled=false;
-    }
+  const me=config?.roster?.find(p=>p.id===myLanId);
+  if(me){
+    game.role=me.role;
+    if(me.role==='hunter') game.hunterId=me.character;
+    else game.characterId=me.character;
   }
 
-  game.message=`同图联机已开始！[${lanRoomCode}] 共 ${game.survivors.length} 名求生者与 1 位监管者`;
+  if(three){
+    if(three.player.updateCharacter) three.player.updateCharacter(game.characterId);
+    if(three.hunter.updateSkin) three.hunter.updateSkin(game.hunterId);
+    three.player.group.visible=game.role!=='hunter';
+  }
+
+  game.message=`同图联机已开始！[${lanRoomCode}]`;
+  $('#stage').focus({preventScroll:true});
 }
-function applyWorld(state){if(!sharedMatch)return;const me=state.actors.find(a=>a.id===myLanId),hunter=state.actors.find(a=>a.role==='hunter');if(!me||!hunter)return;game.role=me.role;game.time=state.time;game.generators=state.generators;game.pallets=state.pallets;game.exits=state.exits;game.exit=game.exits[0];game.hunter={...hunter.position};game.attack=hunter.attack;game.stun=hunter.stun;game.hunterAttackCooldown=hunter.hunterAttackCooldown;game.player={...(me.role==='survivor'?me.position:state.actors.find(a=>a.role==='survivor')?.position||{x:40,y:70}),id:myLanId};game.health=me.health;game.dashCooldown=me.dashCooldown;game.characterId=me.role==='survivor'?me.character:game.characterId;game.hunterId=hunter.character;game.calibration=me.calibration;game.vault=me.vault;game.healing=me.healing;game.healProgress=me.healProgress;game.decoding=game.generators[me.decodeIndex]||null;game.message=me.message;game.status=state.status==='finished'?'lost':'playing';game.survivors=state.actors.filter(a=>a.role==='survivor').map(a=>a.id===myLanId?game.player:{...a.position,id:a.id,nickname:a.nickname,health:a.health,isAi:a.bot});}
+function applyWorld(state){if(!sharedMatch)return;const me=state.actors.find(a=>a.id===myLanId),hunter=state.actors.find(a=>a.role==='hunter');if(!me||!hunter)return;game.role=me.role;game.time=state.time;game.generators=state.generators;game.pallets=state.pallets;game.exits=state.exits;game.exit=game.exits[0];game.hunter={...hunter.position};game.attack=hunter.attack;game.stun=hunter.stun;game.hunterAttackCooldown=hunter.hunterAttackCooldown;game.player={...(me.role==='survivor'?me.position:state.actors.find(a=>a.role==='survivor')?.position||{x:40,y:70}),id:myLanId};game.health=me.health;game.dashCooldown=me.dashCooldown;game.characterId=me.role==='survivor'?me.character:game.characterId;game.hunterId=hunter.character;game.calibration=me.calibration;game.vault=me.vault;game.healing=me.healing;game.healProgress=me.healProgress;game.decoding=game.generators[me.decodeIndex]||null;game.message=me.message;game.status=state.status==='finished'?'lost':'playing';game.survivors=state.actors.filter(a=>a.role==='survivor').map(a=>a.id===myLanId?game.player:{...a.position,id:a.id,nickname:a.nickname,character:a.character,health:a.health,isAi:a.bot});}
 
 function updateLanPeer(data){
   if(data.id===myLanId)return;
@@ -470,10 +459,14 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
           const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
           sp.scale.set(3,.75,1);sp.position.set(0,3.2,0);
           pObj.group.add(sp);
-          sMesh={group:pObj.group,legs:pObj.legs,survivorObj:pObj};
+          sMesh={group:pObj.group,legs:pObj.legs,survivorObj:pObj,character:s.character||'mercenary'};
           survivorMeshes.set(s.id||s.nickname,sMesh);
         }
         if(sMesh){
+          if(s.character&&sMesh.character!==s.character&&sMesh.survivorObj?.updateCharacter){
+            sMesh.character=s.character;
+            sMesh.survivorObj.updateCharacter(s.character);
+          }
           sMesh.group.position.set(s.x,s.z||0,s.y);
           sMesh.group.rotation.y=s.angle||0;
           const moving=(Math.hypot(s.x-(s.lastX||s.x),s.y-(s.lastY||s.y))>0.005);
@@ -506,7 +499,7 @@ function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,p
         group.userData.beaconLight.intensity=done?3.5:5.5;
       }
     });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
-let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];input={x,y,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
+let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];const myAngle=Math.hypot(x,y)>0.05?Math.atan2(x,y):cameraAngle;input={x,y,angle:myAngle,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0,angle:myAngle}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
 let lastNetworkInput=0;
 function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);chairState=localMatch.chairSnapshot();const state=localMatch.snapshot();teamActors=state.actors.filter(a=>a.role==='survivor');applyWorld(state);}
 setInterval(tickLocalMatch,50);

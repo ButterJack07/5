@@ -1,4 +1,5 @@
 import {distance} from './game.js';
+import {walkSegment} from './pathfinding.js';
 import {walls,obstacles} from './map.js';
 
 export function sightClear(sim,from,to){
@@ -35,7 +36,7 @@ export class HunterBrain{
     if(this.previous){const moved=distance(actor,this.previous);this.stuck=moved<.03?this.stuck+dt:0;}
     this.previous={x:actor.x,y:actor.y};
     if(this.repath<=0||this.stuck>.6){sim.collisionHeight=actor.z||0;this.route=sim.findPath(goal);sim.collisionHeight=0;this.repath=.7;this.stuck=0;}
-    const direct=sightClear(sim,actor,goal);
+    const direct=walkSegment(sim,actor,goal);
     let next=direct?goal:this.route[0];
     while(next&&!direct&&distance(actor,next)<1.2){this.route.shift();next=this.route[0];}
     if(!next)return {x:0,y:0};

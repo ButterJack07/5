@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>第五人格 · 红教堂 2.5D 全景互动演练</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Serif+SC:wght@500;700&display=swap');
+:root{--ink:#ece8da;--gold:#e2c079;--bg:#0e1614;--line:#2e3e37;--hud:#121e1ad9;--red:#c23838;--purple:#a65bd6;--green:#48b870;--blue:#4ca2d6;--yellow:#e5b842}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#0a1110;color:var(--ink);font-family:'Noto Serif SC',serif;user-select:none}
+#canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+/* Top HUD */
+.top-hud{position:absolute;top:max(14px,env(safe-area-inset-top));left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+.brand{background:var(--hud);border:1px solid #485c52;padding:10px 16px;box-shadow:0 10px 30px #0008}
+.brand h1{margin:0;font-size:16px;font-weight:700;letter-spacing:.12em;color:var(--gold);font-family:'Cinzel','Noto Serif SC',serif}
+.brand p{margin:4px 0 0;font-size:10px;color:#9cad9f;letter-spacing:.05em}
+.zone-tag{display:inline-block;margin-top:6px;font-size:11px;color:var(--gold);background:#22332a;padding:2px 8px;border-left:3px solid var(--gold)}
+
+/* Mini-Map */
+.map-panel{position:relative;pointer-events:auto;background:var(--hud);border:1px solid #485c52;padding:8px;box-shadow:0 10px 30px #0008;text-align:center}
+#minimap{width:160px;height:160px;display:block;background:#08100e;border:1px solid #23342d}
+.map-panel small{display:block;margin-top:4px;font-size:9px;color:#7e9386}
+
+/* Bottom Hint & Controls */
+.bottom-hud{position:absolute;bottom:max(16px,env(safe-area-inset-bottom));left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:10}
+.legend{background:var(--hud);border:1px solid #485c52;padding:8px 12px;font-size:10px;line-height:1.8;max-width:380px;pointer-events:auto}
+.legend span{margin-right:10px;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.legend b{font-weight:normal}
+.legend .dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+
+.control-tips{background:var(--hud);border:1px solid #485c52;padding:8px 14px;font-size:10px;text-align:right;pointer-events:auto}
+.control-tips kbd{background:#1e2d26;border:1px solid #4a6355;padding:2px 5px;font-family:monospace;color:var(--gold);margin:0 2px}
+
+/* Mobile Touch Controls */
+.touch-zone{display:none;position:absolute;inset:0;pointer-events:none;z-index:15}
+#stick{position:absolute;left:max(25px,env(safe-area-inset-left));bottom:max(30px,env(safe-area-inset-bottom));width:110px;height:110px;border-radius:50%;border:1px solid #4ca2d666;background:#10221c66;pointer-events:auto;touch-action:none}
+#nub{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#4ca2d6aa;border:1px solid #8bd1ff}
+.touch-actions{position:absolute;right:max(25px,env(safe-area-inset-right));bottom:max(30px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;pointer-events:auto}
+.tbtn{width:64px;height:64px;border-radius:50%;background:#1d3027dd;border:1px solid var(--gold);color:var(--gold);font-family:inherit;font-size:12px;font-weight:700;box-shadow:0 4px 15px #0007;display:grid;place-items:center}
+.tbtn:active{transform:scale(.94);background:#2f4d3e}
+@media(pointer:coarse){.touch-zone{display:block}.legend{max-width:280px;font-size:9px}}
+
+/* Free Cam button */
+.view-btn{background:#182822;border:1px solid var(--gold);color:var(--gold);padding:5px 10px;font-family:inherit;font-size:11px;cursor:pointer;margin-top:6px}
+.view-btn:hover{background:#253c33}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<!-- Top HUD -->
+<header class="top-hud">
+  <div class="brand">
+    <h1>RED CHURCH · 2.5D</h1>
+    <p>红教堂 1:1 结构还原演练 · 八大区域全要素</p>
+    <div class="zone-tag" id="currentZone">位置：正在定位...</div>
+  </div>
+  <div class="map-panel">
+    <canvas id="minimap" width="160" height="160"></canvas>
+    <small>俯视雷达 (黄色为当前玩家)</small>
+    <button class="view-btn" id="btnOverview">切换全图鸟瞰</button>
+  </div>
+</header>
+
+<!-- Bottom HUD -->
+<footer class="bottom-hud">
+  <div class="legend">
+    <span><i class="dot" style="background:var(--blue)"></i><b>窗 (8扇)</b></span>
+    <span><i class="dot" style="background:var(--green)"></i><b>板 (24块)</b></span>
+    <span><i class="dot" style="background:var(--yellow)"></i><b>危墙 (可推)</b></span>
+    <span><i class="dot" style="background:var(--purple)"></i><b>地窖 (3处)</b></span>
+    <span><i class="dot" style="background:#d4512e"></i><b>逃生门 (2处)</b></span>
+    <span><i class="dot" style="background:#9d4edd"></i><b>箱子 (8个)</b></span>
+    <span><i class="dot" style="background:#52796f"></i><b>地下室 (2处)</b></span>
+  </div>
+  <div class="control-tips">
+    <div><kbd>WASD</kbd> 或 <kbd>方向键</kbd> 行走　<kbd>Shift</kbd> 疾跑</div>
+    <div style="margin-top:4px"><kbd>空格</kbd> 或 <kbd>E</kbd> 交互 (翻窗/放板/翻板/推危墙/翻箱)</div>
+  </div>
+</footer>
+
+<!-- Touch Controls for Phone -->
+<div class="touch-zone">
+  <div id="stick"><div id="nub"></div></div>
+  <div class="touch-actions">
+    <button class="tbtn" id="btnInteract">交互/翻越</button>
+    <button class="tbtn" id="btnPush">推危墙</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+// ==========================================
+// 1. 红教堂 完整规范数据集 (按文本图纸精确映射)
+// 地图尺寸: 200 x 200. 上=北(Y偏小), 下=南(Y偏大), 左=西(X偏小), 右=东(X偏大)
+// ==========================================
+const MAP_SIZE = 200;
+
+// 八大区域定义 (判定玩家所在区域)
+const ZONES = [
+  { id:'xiao_tui', name:'西北区 ｜ 小推', box:[0,0,68,68] },
+  { id:'zhong_tui', name:'西区中部 ｜ 中推', box:[0,68,68,132] },
+  { id:'da_tui', name:'西南区 ｜ 大推', box:[0,132,68,200] },
+  { id:'xiao_fang', name:'北部中区 ｜ 小房', box:[68,0,132,68] },
+  { id:'church', name:'地图正中心 ｜ 教堂', box:[68,68,132,132] },
+  { id:'pai_yi', name:'南部中区 ｜ 排椅+大门', box:[68,132,132,200] },
+  { id:'xiao_men', name:'东北区 ｜ 小门废墟', box:[132,0,200,105] },
+  { id:'graveyard', name:'东南区 ｜ 墓地', box:[132,105,200,200] }
+];
+
+// 逃生大门 (2处)
+const EXITS = [
+  { id:'south_gate', name:'南中逃生大门', x:100, y:198, w:18, d:2, h:6, open:false, progress:0 },
+  { id:'north_gate', name:'东北逃生小门', x:175, y:2, w:18, d:2, h:6, open:false, progress:0 }
+];
+
+// 地窖 (3选1刷新点位)
+const HATCHES = [
+  { id:'hatch_da_tui', name:'大推地窖', x:15, y:185, active:true },
+  { id:'hatch_xiao_men', name:'小门地窖', x:188, y:95, active:false },
+  { id:'hatch_graveyard', name:'墓地地窖', x:140, y:120, active:false }
+];
+
+// 地下室 (2选1刷新点位, 标注楼梯与虚线框)
+const BASEMENTS = [
+  { id:'base_xiao_fang', name:'小房地下室', x:92, y:28, w:16, d:14 },
+  { id:'base_church', name:'教堂地下室', x:88, y:100, w:18, d:16 }
+];
+
+// 8个固定箱子
+const CHESTS = [
+  { id:'c1', zone:'小推内部靠北', x:28, y:18, opened:false },
+  { id:'c2', zone:'中推中部偏南', x:32, y:110, opened:false },
+  { id:'c3', zone:'大推危墙北侧', x:24, y:145, opened:false },
+  { id:'c4', zone:'小房房间内', x:105, y:30, opened:false },
+  { id:'c5', zone:'教堂大厅南侧', x:100, y:118, opened:false },
+  { id:'c6', zone:'小门废墟中部', x:165, y:52, opened:false },
+  { id:'c7', zone:'墓地西北(地窖旁)', x:148, y:124, opened:false },
+  { id:'c8', zone:'墓地东南角边缘', x:190, y:190, opened:false }
+];
+
+// 全部 8 扇窗户 (可翻越)
+const WINDOWS = [
+  { id:'w1', zone:'小推东侧废墟窗', x:58, y:24, w:4, d:1.2, h:1.6, dir:'x' },
+  { id:'w2', zone:'中推偏北东侧窗', x:58, y:82, w:4, d:1.2, h:1.6, dir:'x' },
+  { id:'w3', zone:'大推东侧排椅路口窗', x:58, y:160, w:4, d:1.2, h:1.6, dir:'x' },
+  { id:'w4', zone:'小房东侧墙壁窗', x:112, y:34, w:1.2, d:4, h:1.6, dir:'y' },
+  { id:'w5', zone:'教堂南墙出口旁窗', x:110, y:126, w:4, d:1.2, h:1.6, dir:'x' },
+  { id:'w6', zone:'小门废墟北窗', x:162, y:26, w:4, d:1.2, h:1.6, dir:'x' },
+  { id:'w7', zone:'小门废墟中窗', x:150, y:65, w:1.2, d:4, h:1.6, dir:'y' },
+  { id:'w8', zone:'墓地东侧中部窗', x:188, y:155, w:1.2, d:4, h:1.6, dir:'y' }
+];
+
+// 全部 24 块板子 (可放下/翻越)
+const PALLETS = [
+  // 小推 (3块)
+  { id:'p1', zone:'小推东侧通往教堂废墟', x:58, y:12, down:false, lean:'left' },
+  { id:'p2', zone:'小推中部危墙南通道', x:32, y:42, down:false, lean:'right' },
+  { id:'p3', zone:'小推最南连接中推入口', x:24, y:65, down:false, lean:'left' },
+  // 中推 (4块)
+  { id:'p4', zone:'中推北侧入口板', x:24, y:72, down:false, lean:'right' },
+  { id:'p5', zone:'中推中部横向隔断板', x:38, y:95, down:false, lean:'left' },
+  { id:'p6', zone:'中推东侧近教堂纵向板', x:56, y:102, down:false, lean:'right' },
+  { id:'p7', zone:'中推南部通大推板', x:28, y:128, down:false, lean:'left' },
+  // 大推 (3块)
+  { id:'p8', zone:'大推北侧入口板', x:28, y:135, down:false, lean:'right' },
+  { id:'p9', zone:'大推中部纵向隔墙板', x:36, y:165, down:false, lean:'left' },
+  { id:'p10', zone:'大推东侧通往排椅板', x:58, y:178, down:false, lean:'right' },
+  // 小房 (1块)
+  { id:'p11', zone:'小房东南门出口外侧板', x:106, y:48, down:false, lean:'left' },
+  // 教堂 (2块)
+  { id:'p12', zone:'教堂北门通道板', x:100, y:64, down:false, lean:'left' },
+  { id:'p13', zone:'教堂东门通道板', x:128, y:98, down:false, lean:'right' },
+  // 小门废墟 (4块)
+  { id:'p14', zone:'小门废墟北板', x:156, y:18, down:false, lean:'left' },
+  { id:'p15', zone:'小门废墟中北板', x:174, y:40, down:false, lean:'right' },
+  { id:'p16', zone:'小门废墟中南板', x:152, y:78, down:false, lean:'left' },
+  { id:'p17', zone:'小门地窖旁板', x:182, y:92, down:false, lean:'right' },
+  // 排椅区 (3块)
+  { id:'p18', zone:'排椅西侧通道板', x:75, y:155, down:false, lean:'left' },
+  { id:'p19', zone:'排椅中部通道板', x:98, y:165, down:false, lean:'right' },
+  { id:'p20', zone:'排椅东侧通往墓地板', x:125, y:172, down:false, lean:'left' },
+  // 墓地 (4块)
+  { id:'p21', zone:'墓地北通道板1', x:155, y:118, down:false, lean:'right' },
+  { id:'p22', zone:'墓地纵向通道板2', x:172, y:138, down:false, lean:'left' },
+  { id:'p23', zone:'墓地纵向通道板3', x:158, y:162, down:false, lean:'right' },
+  { id:'p24', zone:'墓地南通道板4', x:176, y:180, down:false, lean:'left' }
+];
+
+// 危墙群定义 (可推倒破开通路的危墙)
+const DANGER_WALLS = [
+  // 小推危墙群
+  { id:'dw1', x:18, y:28, w:12, d:1.2, h:2.8, down:false, zone:'小推' },
+  { id:'dw2', x:32, y:24, w:1.2, d:14, h:2.8, down:false, zone:'小推' },
+  { id:'dw3', x:24, y:48, w:14, d:1.2, h:2.8, down:false, zone:'小推' },
+  { id:'dw4', x:42, y:36, w:1.2, d:12, h:2.8, down:false, zone:'小推' },
+  // 大推危墙群
+  { id:'dw5', x:18, y:155, w:12, d:1.2, h:2.8, down:false, zone:'大推' },
+  { id:'dw6', x:12, y:172, w:1.2, d:14, h:2.8, down:false, zone:'大推' },
+  { id:'dw7', x:26, y:180, w:14, d:1.2, h:2.8, down:false, zone:'大推' }
+];
+
+// 固定实墙结构 (教堂、小房、迷宫隔离长墙、外围边界)
+const WALLS = [
+  // 1. 地图四周边墙 (带西北凹角)
+  { x:100, y:1, w:198, d:2, h:4, type:'outer' }, // 北墙
+  { x:100, y:199, w:198, d:2, h:4, type:'outer' }, // 南墙
+  { x:199, y:100, w:2, d:198, h:4, type:'outer' }, // 东墙
+  { x:1, y:134, w:2, d:130, h:4, type:'outer' }, // 西墙南部
+  { x:1, y:34, w:2, d:66, h:4, type:'outer' }, // 西墙北部
+
+  // 2. 教堂主体建筑 (中央 100, 100 几何核心, 四面留门)
+  // 北门开在 100,74; 南门开在 100,126; 西门开在 74,100; 东门开在 126,100
+  { x:84, y:74, w:18, d:2.5, h:8, type:'church' },
+  { x:116, y:74, w:18, d:2.5, h:8, type:'church' },
+  { x:74, y:86, w:2.5, d:20, h:8, type:'church' },
+  { x:74, y:114, w:2.5, d:20, h:8, type:'church' },
+  { x:126, y:86, w:2.5, d:20, h:8, type:'church' },
+  { x:126, y:114, w:2.5, d:20, h:8, type:'church' },
+  { x:84, y:126, w:18, d:2.5, h:8, type:'church' },
+  { x:118, y:126, w:14, d:2.5, h:8, type:'church' },
+
+  // 3. 小房 (北部 100, 32, 东南开门 106, 42)
+  { x:100, y:22, w:24, d:2, h:4.5, type:'cottage' }, // 北墙
+  { x:88, y:33, w:2, d:22, h:4.5, type:'cottage' }, // 西墙
+  { x:96, y:44, w:16, d:2, h:4.5, type:'cottage' }, // 南墙(留门)
+  { x:112, y:27, w:2, d:10, h:4.5, type:'cottage' }, // 东墙北段
+  { x:112, y:40, w:2, d:8, h:4.5, type:'cottage' }, // 东墙南段(留窗)
+
+  // 4. 中推板区长短纵墙迷宫 (南北走向隔墙)
+  { x:16, y:88, w:1.5, d:24, h:3 },
+  { x:28, y:100, w:1.5, d:26, h:3 },
+  { x:42, y:84, w:1.5, d:20, h:3 },
+  { x:48, y:112, w:1.5, d:22, h:3 },
+  { x:58, y:92, w:1.5, d:14, h:3 },
+
+  // 5. 排椅区横向矮墙 (模拟排椅长隔断)
+  { x:82, y:148, w:18, d:1.4, h:1.8, type:'bench_row' },
+  { x:118, y:148, w:18, d:1.4, h:1.8, type:'bench_row' },
+  { x:82, y:162, w:18, d:1.4, h:1.8, type:'bench_row' },
+  { x:118, y:162, w:18, d:1.4, h:1.8, type:'bench_row' },
+  { x:88, y:176, w:24, d:1.4, h:1.8, type:'bench_row' },
+
+  // 6. 东北小门废墟交错墙
+  { x:144, y:28, w:1.5, d:26, h:3 },
+  { x:158, y:44, w:18, d:1.5, h:3 },
+  { x:172, y:30, w:1.5, d:24, h:3 },
+  { x:180, y:64, w:20, d:1.5, h:3 },
+  { x:158, y:86, w:1.5, d:22, h:3 },
+
+  // 7. 东南墓地纵向长隔墙
+  { x:148, y:142, w:1.5, d:32, h:2.8 },
+  { x:165, y:128, w:1.5, d:26, h:2.8 },
+  { x:180, y:150, w:1.5, d:34, h:2.8 }
+];
+
+// ==========================================
+// 2. 玩家状态与物理碰撞系统
+// ==========================================
+const player = {
+  x: 100, y: 100, // 初始在教堂中心
+  vx: 0, vy: 0,
+  speed: 16,
+  vaulting: null,
+  vaultTimer: 0,
+  angle: 0
+};
+
+// 检查某个坐标是否阻挡
+function isBlocked(x, y, r = 1.1) {
+  // 地图外框
+  if (x < 2 || x > MAP_SIZE - 2 || y < 2 || y > MAP_SIZE - 2) return true;
+  // 实墙
+  for (const w of WALLS) {
+    if (Math.abs(x - w.x) < w.w / 2 + r && Math.abs(y - w.y) < w.d / 2 + r) return true;
+  }
+  // 未推倒的危墙
+  for (const dw of DANGER_WALLS) {
+    if (!dw.down && Math.abs(x - dw.x) < dw.w / 2 + r && Math.abs(y - dw.y) < dw.d / 2 + r) return true;
+  }
+  // 已放下的木板
+  for (const p of PALLETS) {
+    if (p.down && Math.hypot(x - p.x, y - p.y) < 2.2 + r) return true;
+  }
+  return false;
+}
+
+// 碰撞解算 (沿障碍平滑滑动)
+function resolveMove(p, dx, dy) {
+  const steps = 4;
+  for (let i = 0; i < steps; i++) {
+    const nx = p.x + dx / steps;
+    if (!isBlocked(nx, p.y)) p.x = nx;
+    const ny = p.y + dy / steps;
+    if (!isBlocked(p.x, ny)) p.y = ny;
+  }
+}
+
+// ==========================================
+// 3. 2.5D Isometric 核心投影与渲染
+// X_screen = (worldX - worldY) * 0.707 * scale
+// Y_screen = (worldX + worldY) * 0.36 * scale - height * scale
+// ==========================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+let viewScale = 18;
+let freeCam = false;
+let camX = 100, camY = 100;
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  viewScale = Math.min(W / 45, H / 35);
+  if (viewScale < 14) viewScale = 14;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// 2.5D 等距投影函数
+function toIso(wx, wy, wz = 0) {
+  const focusX = freeCam ? camX : player.x;
+  const focusY = freeCam ? camY : player.y;
+  const dx = wx - focusX;
+  const dy = wy - focusY;
+  const sx = (dx - dy) * 0.7071 * viewScale + W / 2;
+  const sy = (dx + dy) * 0.36 * viewScale - wz * viewScale + H * 0.58;
+  return { x: sx, y: sy };
+}
+
+// 绘制立体方块 (墙体/排椅/门)
+function drawIsoBox(x, y, w, d, h, topColor, leftColor, rightColor) {
+  const hw = w / 2, hd = d / 2;
+  const p0 = toIso(x - hw, y - hd, 0);
+  const p1 = toIso(x + hw, y - hd, 0);
+  const p2 = toIso(x + hw, y + hd, 0);
+  const p3 = toIso(x - hw, y + hd, 0);
+
+  const t0 = toIso(x - hw, y - hd, h);
+  const t1 = toIso(x + hw, y - hd, h);
+  const t2 = toIso(x + hw, y + hd, h);
+  const t3 = toIso(x - hw, y + hd, h);
+
+  // 顶面
+  ctx.fillStyle = topColor || '#8a968a';
+  ctx.beginPath();
+  ctx.moveTo(t0.x, t0.y); ctx.lineTo(t1.x, t1.y);
+  ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#2d3d34'; ctx.lineWidth = 1; ctx.stroke();
+
+  // 左侧面
+  ctx.fillStyle = leftColor || '#4d5c52';
+  ctx.beginPath();
+  ctx.moveTo(p3.x, p3.y); ctx.lineTo(p2.x, p2.y);
+  ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // 右侧面
+  ctx.fillStyle = rightColor || '#36433b';
+  ctx.beginPath();
+  ctx.moveTo(p2.x, p2.y); ctx.lineTo(p1.x, p1.y);
+  ctx.lineTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+// ==========================================
+// 4. 输入与交互逻辑
+// ==========================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if ([' ', 'e', 'enter'].includes(e.key.toLowerCase())) handleInteract();
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// 交互触发 (翻窗 / 放板 / 翻板 / 推倒危墙 / 开箱)
+function handleInteract() {
+  if (player.vaulting) return;
+
+  // 1. 翻窗 (靠近 8 扇窗户)
+  for (const w of WINDOWS) {
+    if (Math.hypot(player.x - w.x, player.y - w.y) < 3.8) {
+      startVault(w.x, w.y, w.dir);
+      return;
+    }
+  }
+
+  // 2. 木板交互 (放板 / 翻板)
+  for (const p of PALLETS) {
+    if (Math.hypot(player.x - p.x, player.y - p.y) < 3.8) {
+      if (!p.down) {
+        p.down = true; // 放下板子
+      } else {
+        startVault(p.x, p.y, 'x'); // 翻板
+      }
+      return;
+    }
+  }
+
+  // 3. 推倒危墙
+  for (const dw of DANGER_WALLS) {
+    if (!dw.down && Math.hypot(player.x - dw.x, player.y - dw.y) < 4.2) {
+      dw.down = true;
+      return;
+    }
+  }
+
+  // 4. 箱子交互
+  for (const c of CHESTS) {
+    if (!c.opened && Math.hypot(player.x - c.x, player.y - c.y) < 3.5) {
+      c.opened = true;
+      return;
+    }
+  }
+}
+
+// 翻越平滑插值动作
+function startVault(tx, ty, dir) {
+  const fromX = player.x, fromY = player.y;
+  let targetX = tx, targetY = ty;
+  if (dir === 'y') {
+    targetX = fromX < tx ? tx + 2.4 : tx - 2.4;
+  } else {
+    targetY = fromY < ty ? ty + 2.4 : ty - 2.4;
+  }
+  player.vaulting = { fromX, fromY, toX: targetX, toY: targetY, t: 0 };
+}
+
+// 手机摇杆
+const stick = document.getElementById('stick');
+const nub = document.getElementById('nub');
+let stickTouch = null;
+let touchDir = { x: 0, y: 0 };
+
+stick.addEventListener('pointerdown', e => {
+  stickTouch = e.pointerId;
+  stick.setPointerCapture(e.pointerId);
+  updateStick(e);
+});
+stick.addEventListener('pointermove', e => {
+  if (stickTouch === e.pointerId) updateStick(e);
+});
+const endStick = () => {
+  stickTouch = null;
+  touchDir = { x: 0, y: 0 };
+  nub.style.transform = 'translate(0,0)';
+};
+stick.addEventListener('pointerup', endStick);
+stick.addEventListener('pointercancel', endStick);
+
+function updateStick(e) {
+  const r = stick.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  let dx = e.clientX - cx, dy = e.clientY - cy;
+  const len = Math.hypot(dx, dy);
+  const max = 35;
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  nub.style.transform = `translate(${dx}px,${dy}px)`;
+  touchDir = { x: dx / max, y: dy / max };
+}
+
+document.getElementById('btnInteract').onclick = handleInteract;
+document.getElementById('btnPush').onclick = () => {
+  for (const dw of DANGER_WALLS) {
+    if (!dw.down && Math.hypot(player.x - dw.x, player.y - dw.y) < 4.2) { dw.down = true; return; }
+  }
+};
+document.getElementById('btnOverview').onclick = () => {
+  freeCam = !freeCam;
+  document.getElementById('btnOverview').textContent = freeCam ? '恢复主角跟随' : '切换全图鸟瞰';
+  if (freeCam) { camX = 100; camY = 100; }
+};
+
+// ==========================================
+// 5. 主游戏循环与渲染管线
+// ==========================================
+let lastTime = performance.now();
+
+function loop(now) {
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+
+  // 1. 移动逻辑
+  if (player.vaulting) {
+    player.vaulting.t += dt / 0.85; // 翻窗持续约 0.85 秒
+    const t = player.vaulting.t;
+    player.x = player.vaulting.fromX + (player.vaulting.toX - player.vaulting.fromX) * t;
+    player.y = player.vaulting.fromY + (player.vaulting.toY - player.vaulting.fromY) * t;
+    if (t >= 1) player.vaulting = null;
+  } else {
+    let mx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0) + touchDir.x;
+    let my = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0) + touchDir.y;
+    const len = Math.hypot(mx, my);
+    if (len > 0.05) {
+      const spd = (keys['shift'] ? 24 : 16);
+      const nx = mx / (len > 1 ? len : 1) * spd * dt;
+      const ny = my / (len > 1 ? len : 1) * spd * dt;
+      resolveMove(player, nx, ny);
+      player.angle = Math.atan2(nx, ny);
+    }
+  }
+
+  // 2. 清屏与地表网格绘制
+  ctx.fillStyle = '#0a1210';
+  ctx.fillRect(0, 0, W, H);
+
+  // 绘制八大区域背景色块 (形成清晰格局)
+  for (const z of ZONES) {
+    const p0 = toIso(z.box[0], z.box[1], 0);
+    const p1 = toIso(z.box[2], z.box[1], 0);
+    const p2 = toIso(z.box[2], z.box[3], 0);
+    const p3 = toIso(z.box[0], z.box[3], 0);
+    ctx.fillStyle = (z.id === 'church') ? '#1e2d27' : (z.id === 'graveyard') ? '#131f1c' : '#14231e';
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#1d2d26'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // 绘制教堂中殿红色婚礼地毯 (长达 36 米)
+  const c0 = toIso(98, 76, 0.05);
+  const c1 = toIso(102, 76, 0.05);
+  const c2 = toIso(102, 124, 0.05);
+  const c3 = toIso(98, 124, 0.05);
+  ctx.fillStyle = '#8b2630';
+  ctx.beginPath();
+  ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y);
+  ctx.closePath(); ctx.fill();
+
+  // 绘制地下室楼梯标识 (虚线口)
+  for (const b of BASEMENTS) {
+    const bp = toIso(b.x, b.y, 0.08);
+    ctx.fillStyle = '#0f1715';
+    ctx.strokeStyle = '#5a786a';
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(bp.x - 22, bp.y - 12, 44, 24);
+    ctx.fillRect(bp.x - 22, bp.y - 12, 44, 24);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#8ca89a';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼地下室入口', bp.x, bp.y + 4);
+  }
+
+  // 3. 物件集合深度排序渲染 (按 Isometric 景深: worldX + worldY 递增渲染)
+  const drawList = [];
+
+  // 收集实墙
+  for (const w of WALLS) {
+    drawList.push({ depth: w.x + w.y, type:'wall', obj:w });
+  }
+
+  // 收集危墙
+  for (const dw of DANGER_WALLS) {
+    drawList.push({ depth: dw.x + dw.y, type:'danger_wall', obj:dw });
+  }
+
+  // 收集窗户 (突出蓝色拱形窗框)
+  for (const win of WINDOWS) {
+    drawList.push({ depth: win.x + win.y, type:'window', obj:win });
+  }
+
+  // 收集木板 (立/倒)
+  for (const p of PALLETS) {
+    drawList.push({ depth: p.x + p.y, type:'pallet', obj:p });
+  }
+
+  // 收集地窖 (八角形铁板)
+  for (const h of HATCHES) {
+    drawList.push({ depth: h.x + h.y, type:'hatch', obj:h });
+  }
+
+  // 收集逃生大门
+  for (const g of EXITS) {
+    drawList.push({ depth: g.x + g.y, type:'gate', obj:g });
+  }
+
+  // 收集箱子
+  for (const c of CHESTS) {
+    drawList.push({ depth: c.x + c.y, type:'chest', obj:c });
+  }
+
+  // 收集玩家
+  drawList.push({ depth: player.x + player.y, type:'player' });
+
+  // 深度排序
+  drawList.sort((a, b) => a.depth - b.depth);
+
+  // 依次渲染物体
+  for (const item of drawList) {
+    switch (item.type) {
+      case 'wall': {
+        const w = item.obj;
+        // 近身半透明, 避免遮挡玩家
+        const dist = Math.hypot(player.x - w.x, player.y - w.y);
+        ctx.globalAlpha = (dist < 8 && player.y < w.y) ? 0.35 : 1;
+        if (w.type === 'church') {
+          drawIsoBox(w.x, w.y, w.w, w.d, w.h, '#6a786f', '#44534a', '#2d3b33');
+        } else if (w.type === 'bench_row') {
+          drawIsoBox(w.x, w.y, w.w, w.d, w.h, '#7a5438', '#533621', '#382213');
+        } else {
+          drawIsoBox(w.x, w.y, w.w, w.d, w.h, '#5c6961', '#3f4b43', '#2b362f');
+        }
+        ctx.globalAlpha = 1;
+        break;
+      }
+      case 'danger_wall': {
+        const dw = item.obj;
+        if (!dw.down) {
+          // 完整危墙 (醒目黄色风化石板)
+          drawIsoBox(dw.x, dw.y, dw.w, dw.d, dw.h, '#d4a838', '#8f6e21', '#5e4813');
+          const p = toIso(dw.x, dw.y, dw.h + 0.4);
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('🟨危墙(按E推)', p.x, p.y);
+        } else {
+          // 已推倒碎石块
+          drawIsoBox(dw.x, dw.y, dw.w, dw.d, 0.4, '#6b5830', '#4a3d20', '#302611');
+        }
+        break;
+      }
+      case 'window': {
+        const win = item.obj;
+        // 窗框
+        drawIsoBox(win.x, win.y, win.w, win.d, win.h, '#4ca2d6', '#26658c', '#15405c');
+        const p = toIso(win.x, win.y, win.h + 0.8);
+        ctx.fillStyle = '#6ad1ff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('🔵窗', p.x, p.y);
+        break;
+      }
+      case 'pallet': {
+        const p = item.obj;
+        if (!p.down) {
+          // 斜靠木板 (站立)
+          drawIsoBox(p.x, p.y, 1.8, 1.8, 2.8, '#a67c52', '#735132', '#4d341d');
+          const pos = toIso(p.x, p.y, 3.2);
+          ctx.fillStyle = '#54e386';
+          ctx.font = 'bold 9px monospace';
+          ctx.fillText('🟢立板', pos.x, pos.y);
+        } else {
+          // 放倒的平木板 (可翻越)
+          drawIsoBox(p.x, p.y, 3.8, 1.6, 0.4, '#7a593a', '#523a24', '#332314');
+        }
+        break;
+      }
+      case 'hatch': {
+        const h = item.obj;
+        // 地窖方形井盖
+        drawIsoBox(h.x, h.y, 3.4, 3.4, 0.3, '#9d4edd', '#6b2fa1', '#4a1d73');
+        const p = toIso(h.x, h.y, 1.2);
+        ctx.fillStyle = '#d49eff';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('🟪' + h.name, p.x, p.y);
+        break;
+      }
+      case 'gate': {
+        const g = item.obj;
+        drawIsoBox(g.x, g.y, g.w, g.d, g.h, '#e05338', '#993320', '#631e11');
+        const p = toIso(g.x, g.y, g.h + 1.2);
+        ctx.fillStyle = '#ff7b61';
+        ctx.font = 'bold 12px monospace';
+        ctx.fillText('🟧' + g.name, p.x, p.y);
+        break;
+      }
+      case 'chest': {
+        const c = item.obj;
+        drawIsoBox(c.x, c.y, 1.8, 1.8, 1.4, c.opened ? '#5a4e61' : '#a855f7', '#6b2fa1', '#401766');
+        const p = toIso(c.x, c.y, 2.2);
+        ctx.fillStyle = '#dfb5ff';
+        ctx.font = '9px monospace';
+        ctx.fillText(c.opened ? '已开启' : '💜箱子', p.x, p.y);
+        break;
+      }
+      case 'player': {
+        // 渲染玩家自身 (纽扣眼求生者模型)
+        const pIso = toIso(player.x, player.y, 0);
+        // 阴影
+        ctx.fillStyle = '#00000066';
+        ctx.beginPath();
+        ctx.ellipse(pIso.x, pIso.y, 10, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 躯干
+        drawIsoBox(player.x, player.y, 1.3, 1.3, 2.2, '#558b6e', '#39634d', '#234232');
+        // 头部
+        const hIso = toIso(player.x, player.y, 2.6);
+        ctx.fillStyle = '#eedbc5';
+        ctx.beginPath();
+        ctx.arc(hIso.x, hIso.y, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 眼睛
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(hIso.x - 3, hIso.y, 2.2, 0, Math.PI * 2);
+        ctx.arc(hIso.x + 3, hIso.y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 翻越中提示
+        if (player.vaulting) {
+          ctx.fillStyle = '#ffd166';
+          ctx.font = 'bold 10px monospace';
+          ctx.fillText('翻越中...', hIso.x, hIso.y - 14);
+        }
+        break;
+      }
+    }
+  }
+
+  // 4. 当前所在区域定位与更新
+  let curZoneName = '荒原外围';
+  for (const z of ZONES) {
+    if (player.x >= z.box[0] && player.x <= z.box[2] && player.y >= z.box[1] && player.y <= z.box[3]) {
+      curZoneName = z.name;
+      break;
+    }
+  }
+  document.getElementById('currentZone').textContent = '位置：' + curZoneName;
+
+  // 5. 绘制右上角实时俯视小雷达
+  drawMinimap();
+
+  requestAnimationFrame(loop);
+}
+
+// 俯视小地图绘制
+const mCanvas = document.getElementById('minimap');
+const mCtx = mCanvas.getContext('2d');
+function drawMinimap() {
+  mCtx.clearRect(0, 0, 160, 160);
+  const s = 160 / MAP_SIZE;
+
+  // 八大区域底框
+  for (const z of ZONES) {
+    mCtx.strokeStyle = '#22382f';
+    mCtx.strokeRect(z.box[0] * s, z.box[1] * s, (z.box[2] - z.box[0]) * s, (z.box[3] - z.box[1]) * s);
+  }
+
+  // 墙体
+  mCtx.fillStyle = '#445c50';
+  for (const w of WALLS) {
+    mCtx.fillRect((w.x - w.w / 2) * s, (w.y - w.d / 2) * s, w.w * s, w.d * s);
+  }
+
+  // 危墙
+  mCtx.fillStyle = '#e5b842';
+  for (const dw of DANGER_WALLS) {
+    if (!dw.down) mCtx.fillRect((dw.x - dw.w / 2) * s, (dw.y - dw.d / 2) * s, dw.w * s, dw.d * s);
+  }
+
+  // 门
+  mCtx.fillStyle = '#e05338';
+  for (const g of EXITS) {
+    mCtx.fillRect((g.x - g.w / 2) * s, (g.y - g.d / 2) * s, g.w * s, g.d * s);
+  }
+
+  // 地窖
+  mCtx.fillStyle = '#9d4edd';
+  for (const h of HATCHES) {
+    mCtx.beginPath();
+    mCtx.arc(h.x * s, h.y * s, 3.5, 0, Math.PI * 2);
+    mCtx.fill();
+  }
+
+  // 窗户 (蓝点)
+  mCtx.fillStyle = '#4ca2d6';
+  for (const w of WINDOWS) {
+    mCtx.fillRect(w.x * s - 2, w.y * s - 2, 4, 4);
+  }
+
+  // 木板 (绿点)
+  mCtx.fillStyle = '#48b870';
+  for (const p of PALLETS) {
+    if (!p.down) mCtx.fillRect(p.x * s - 1.5, p.y * s - 1.5, 3, 3);
+  }
+
+  // 玩家位置 (黄色高亮闪烁点)
+  mCtx.fillStyle = '#ffea00';
+  mCtx.beginPath();
+  mCtx.arc(player.x * s, player.y * s, 4, 0, Math.PI * 2);
+  mCtx.fill();
+  mCtx.strokeStyle = '#000';
+  mCtx.lineWidth = 1;
+  mCtx.stroke();
+}
+
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

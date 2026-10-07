@@ -1,5 +1,6 @@
-// Detailed Realistic-Proportioned Human Survivor 3D Modeling Module for Fogbound
-// European gothic realistic human anatomy: natural shoulders, articulated limbs, detailed hands, sculpted face and character outfits.
+// Q-Version Ragdoll (Chibi Doll) Survivor 3D Modeling Module for Fogbound
+// Inspired by Identity V's signature gothic ragdoll aesthetics:
+// Round plush heads, iconic cross-stitched button eyes, cute proportions, and detailed character accessories.
 
 export function createSurvivorMesh(T, initialId = 'mercenary') {
   const group = new T.Group();
@@ -45,62 +46,81 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     return m;
   }
 
-  function buildRealisticHead(root, skinMat, hairMat) {
+  // Cute plush chibi ragdoll head with signature cross-stitched button eyes
+  function buildChibiHead(root, skinMat, hairMat, charId) {
     const headG = new T.Group();
-    headG.position.set(0, 2.38, 0);
+    headG.position.set(0, 1.95, 0);
     root.add(headG);
 
-    // Anatomical neck
-    cyl(0.13, 0.16, 0.35, 12, skinMat, headG, 0, -0.28, 0.02);
+    // 1. Chubby plush doll cranium (big round head with baby-fat cheeks)
+    const cranium = sphere(0.48, 16, skinMat, headG, 0, 0, 0);
+    cranium.scale.set(1.08, 0.98, 1.02);
 
-    // Cranium with natural curvature (tapered towards chin)
-    const cranium = sphere(0.36, 16, skinMat, headG, 0, 0.08, -0.02);
-    cranium.scale.set(0.92, 1.05, 1.02);
+    // Cute chubby cheeks
+    for (const side of [-1, 1]) {
+      const cheek = sphere(0.18, 10, skinMat, headG, side * 0.32, -0.12, 0.22);
+      cheek.scale.set(1.1, 0.9, 0.85);
 
-    // Sculpted jawbone & chin
-    const jaw = cone(0.26, 0.42, 14, skinMat, headG, 0, -0.16, 0.08);
-    jaw.rotation.x = Math.PI;
+      // Rosy blush on cheeks
+      const blushMat = new T.MeshStandardMaterial({ color: 0xeb9194, roughness: 0.85 });
+      const blush = cyl(0.09, 0.09, 0.02, 10, blushMat, headG, side * 0.32, -0.11, 0.37);
+      blush.rotation.x = Math.PI / 2;
+      blush.rotation.z = side * 0.15;
+    }
 
-    // Realistic human eyes: sclera + iris + pupil + eyelids
-    const scleraMat = new T.MeshStandardMaterial({ color: 0xf5f5f3, roughness: 0.3 });
-    const irisMat = new T.MeshStandardMaterial({ color: 0x3d271d, roughness: 0.25 });
-    const pupilMat = new T.MeshBasicMaterial({ color: 0x050505 });
-    const browMat = new T.MeshStandardMaterial({ color: 0x241810, roughness: 0.9 });
-    const lipMat = new T.MeshStandardMaterial({ color: 0xb57262, roughness: 0.55 });
+    // 2. Iconic Identity V Ragdoll Button Eyes with Cross Stitches
+    const buttonRimMat = new T.MeshStandardMaterial({ color: 0x18181a, roughness: 0.35, metalness: 0.1 });
+    const buttonCoreMat = new T.MeshStandardMaterial({ color: 0x242428, roughness: 0.45 });
+    const stitchMat = new T.MeshStandardMaterial({ color: 0xe6d4b8, roughness: 0.8 }); // warm cotton yarn thread
 
     for (const side of [-1, 1]) {
-      const eyeX = side * 0.14;
-      const eyeY = 0.06;
-      const eyeZ = 0.32;
+      const eyeX = side * 0.22;
+      const eyeY = 0.02;
+      const eyeZ = 0.44;
 
-      // Eyeball
       const eyeG = new T.Group();
       eyeG.position.set(eyeX, eyeY, eyeZ);
       headG.add(eyeG);
 
-      sphere(0.068, 10, scleraMat, eyeG, 0, 0, 0);
-      cyl(0.042, 0.042, 0.025, 10, irisMat, eyeG, 0, 0, 0.06).rotation.x = Math.PI / 2;
-      cyl(0.02, 0.02, 0.03, 8, pupilMat, eyeG, 0, 0, 0.065).rotation.x = Math.PI / 2;
+      // Button outer rim and inner disk
+      const rim = cyl(0.145, 0.145, 0.04, 16, buttonRimMat, eyeG, 0, 0, 0);
+      rim.rotation.x = Math.PI / 2;
+      const core = cyl(0.11, 0.11, 0.046, 14, buttonCoreMat, eyeG, 0, 0, 0.005);
+      core.rotation.x = Math.PI / 2;
 
-      // Realistic upper eyelid fold
-      cube(0.14, 0.025, 0.05, skinMat, headG, eyeX, eyeY + 0.07, eyeZ + 0.02);
-      // Realistic natural eyebrow
-      const brow = cube(0.15, 0.03, 0.04, browMat, headG, eyeX, eyeY + 0.12, eyeZ + 0.03);
-      brow.rotation.z = -side * 0.14;
+      // 4 small button holes
+      const holeMat = new T.MeshBasicMaterial({ color: 0x0a0a0c });
+      for (const hx of [-0.045, 0.045]) {
+        for (const hy of [-0.045, 0.045]) {
+          const hole = cyl(0.016, 0.016, 0.052, 8, holeMat, eyeG, hx, hy, 0.008);
+          hole.rotation.x = Math.PI / 2;
+        }
+      }
 
-      // Ear on side of head
-      const ear = cube(0.05, 0.16, 0.1, skinMat, headG, side * 0.34, 0.04, -0.04);
-      ear.rotation.y = side * 0.2;
+      // Iconic Cross-Stitches (X thread) tying the button eye
+      const st1 = cube(0.13, 0.025, 0.05, stitchMat, eyeG, 0, 0, 0.018);
+      st1.rotation.z = Math.PI / 4;
+      const st2 = cube(0.13, 0.025, 0.05, stitchMat, eyeG, 0, 0, 0.018);
+      st2.rotation.z = -Math.PI / 4;
+
+      // Cute doll eyebrows
+      const browMat = new T.MeshStandardMaterial({ color: 0x3a291e, roughness: 0.9 });
+      const brow = cube(0.13, 0.028, 0.035, browMat, headG, eyeX, eyeY + 0.19, eyeZ - 0.04);
+      brow.rotation.z = -side * 0.15;
     }
 
-    // Sculpted human nose (bridge, nasal bone, tip)
-    const noseBridge = cube(0.055, 0.17, 0.09, skinMat, headG, 0, 0.02, 0.37);
-    noseBridge.rotation.x = -0.22;
-    sphere(0.045, 8, skinMat, headG, 0, -0.07, 0.39);
+    // Cute small doll nose (simple cloth button or subtle stitched seam)
+    sphere(0.042, 8, skinMat, headG, 0, -0.07, 0.49);
 
-    // Natural philtrum & defined lips
-    cube(0.13, 0.028, 0.04, lipMat, headG, 0, -0.17, 0.34); // upper lip
-    cube(0.11, 0.025, 0.04, lipMat, headG, 0, -0.21, 0.33); // lower lip
+    // Cute little doll mouth (subtle thread stitch)
+    const mouthMat = new T.MeshStandardMaterial({ color: 0x54322d, roughness: 0.85 });
+    cube(0.08, 0.018, 0.02, mouthMat, headG, 0, -0.19, 0.46);
+
+    // Plush button ears
+    for (const side of [-1, 1]) {
+      const ear = cyl(0.1, 0.1, 0.04, 10, skinMat, headG, side * 0.52, -0.02, 0);
+      ear.rotation.z = Math.PI / 2;
+    }
 
     return headG;
   }
@@ -123,211 +143,272 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     armL = null;
     armR = null;
 
-    // Materials - natural textiles, leather, human skin
-    const skinMat = new T.MeshStandardMaterial({ color: 0xead3be, roughness: 0.72, metalness: 0.02 });
-    const hairMat = new T.MeshStandardMaterial({ color: 0x221812, roughness: 0.9 });
-    const leatherMat = new T.MeshStandardMaterial({ color: 0x3d271a, roughness: 0.75 });
-    const darkBootMat = new T.MeshStandardMaterial({ color: 0x1f1f21, roughness: 0.8 });
-    const shirtWhiteMat = new T.MeshStandardMaterial({ color: 0xf0efe8, roughness: 0.85 });
+    // Materials - soft cotton, felt, doll fabrics
+    const skinMat = new T.MeshStandardMaterial({ color: 0xf3dfcf, roughness: 0.78 }); // warm porcelain plush tone
+    const leatherMat = new T.MeshStandardMaterial({ color: 0x4a2e1d, roughness: 0.75 });
+    const darkShoeMat = new T.MeshStandardMaterial({ color: 0x222226, roughness: 0.65 });
+    const whiteFabricMat = new T.MeshStandardMaterial({ color: 0xf5f6f8, roughness: 0.85 });
+    const brassMat = new T.MeshStandardMaterial({ color: 0xd9b35b, metalness: 0.75, roughness: 0.35 });
 
-    let mainColor = 0x475f4d;  // Mercenary trench olive
-    let accentColor = 0x2a3d30;
-    let hairColor = 0x2c221a;
+    let mainColor = 0x4d6652;  // Mercenary trench green
+    let accentColor = 0x2e4233;
+    let hairColor = 0x38281d;
 
     if (charId === 'doctor') {
-      mainColor = 0xebf2f5;   // Nurse apron white
-      accentColor = 0x2a5975; // Navy collar & cuffs
-      hairColor = 0x4a2e1d;
+      mainColor = 0xf2f7f9;    // Pure nurse white
+      accentColor = 0x2c5c78;  // Navy blue collar & trim
+      hairColor = 0x4f3120;    // Warm chestnut brunette
     } else if (charId === 'seer') {
-      mainColor = 0x243345;   // Mystic deep midnight blue
-      accentColor = 0x15202d;
-      hairColor = 0x1a1a1a;
+      mainColor = 0x283b4f;
+      accentColor = 0x182433;
+      hairColor = 0x1f1f22;
     } else if (charId === 'perfumer') {
-      mainColor = 0x614466;   // Victorian aristocrat violet
-      accentColor = 0x3c2740;
-      hairColor = 0x22171f;
+      mainColor = 0x6e4a73;
+      accentColor = 0x482d4d;
+      hairColor = 0x2d1e2b;
     } else if (charId === 'prospector') {
-      mainColor = 0x6e492e;   // Worker leather brown
-      accentColor = 0x3a2e24;
-      hairColor = 0x1d1d1d;
+      mainColor = 0x7a5233;
+      accentColor = 0x453123;
+      hairColor = 0x222222;
     } else if (charId === 'acrobat') {
-      mainColor = 0xad7b16;   // Circus golden ochre
-      accentColor = 0x822510;
-      hairColor = 0xb55a1e;
+      mainColor = 0xba851c;
+      accentColor = 0x8a2d18;
+      hairColor = 0xc46321;
     } else if (charId === 'forward') {
-      mainColor = 0x9e2e21;   // Athletic crimson
-      accentColor = 0x1f1f21;
-      hairColor = 0x151515;
+      mainColor = 0xa33224;
+      accentColor = 0x242426;
+      hairColor = 0x181818;
     } else if (charId === 'coordinator') {
-      mainColor = 0x3d4e61;   // Service navy
-      accentColor = 0xb5954a; // Gold braiding
+      mainColor = 0x3e5269;
+      accentColor = 0xc7a44f;
       hairColor = 0x4a3424;
     } else if (charId === 'priestess') {
-      mainColor = 0x4d3361;   // Ceremonial plum
-      accentColor = 0x7b5894;
-      hairColor = 0x251c2b;
+      mainColor = 0x54376b;
+      accentColor = 0x845ea1;
+      hairColor = 0x2c1f33;
     }
 
-    const mainMat = new T.MeshStandardMaterial({ color: mainColor, roughness: 0.82 });
-    const accentMat = new T.MeshStandardMaterial({ color: accentColor, roughness: 0.82 });
-    const customHairMat = new T.MeshStandardMaterial({ color: hairColor, roughness: 0.92 });
+    const mainMat = new T.MeshStandardMaterial({ color: mainColor, roughness: 0.8 });
+    const accentMat = new T.MeshStandardMaterial({ color: accentColor, roughness: 0.8 });
+    const hairMat = new T.MeshStandardMaterial({ color: hairColor, roughness: 0.9 });
 
-    // 1. Realistic Torso Structure (natural chest, waist, and hips)
+    // 1. Cute Chibi Torso (Short, slightly pear-shaped plush body)
     const torso = new T.Group();
-    torso.position.set(0, 1.48, 0);
+    torso.position.set(0, 1.25, 0);
     group.add(torso);
 
-    // Upper chest & shoulders (trapezoid broad chest)
-    cube(0.72, 0.65, 0.44, mainMat, torso, 0, 0.32, 0);
-    // Shirt collar insert at throat
-    cube(0.24, 0.22, 0.46, shirtWhiteMat, torso, 0, 0.6, 0.02);
+    // Chubby torso body
+    const bodyMesh = sphere(0.38, 14, mainMat, torso, 0, 0.05, 0);
+    bodyMesh.scale.set(1.05, 1.15, 0.95);
 
-    // Lower midriff & waist (slight taper inwards)
-    cube(0.64, 0.55, 0.4, mainMat, torso, 0, -0.18, 0);
+    // Shirt collar / neck trim
+    cube(0.26, 0.16, 0.32, (charId === 'doctor' ? accentMat : whiteFabricMat), torso, 0, 0.42, 0.02);
 
-    // Tailored buttons down center
-    for (const by of [0.45, 0.28, 0.1, -0.08]) {
-      cube(0.045, 0.045, 0.03, accentMat, torso, 0, by, 0.23);
+    // Cute buttons down front
+    const buttonMat = new T.MeshStandardMaterial({ color: (charId === 'doctor' ? 0x2c5c78 : 0x252528), roughness: 0.5 });
+    for (const by of [0.28, 0.12, -0.04]) {
+      const b = cyl(0.035, 0.035, 0.02, 8, buttonMat, torso, 0, by, 0.38);
+      b.rotation.x = Math.PI / 2;
     }
 
-    // Leather belt with metal buckle
-    cube(0.68, 0.12, 0.43, leatherMat, torso, 0, -0.42, 0);
-    cube(0.14, 0.15, 0.45, new T.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.8, roughness: 0.3 }), torso, 0, -0.42, 0);
+    // Leather belt with cute gold buckle
+    cube(0.72, 0.09, 0.58, leatherMat, torso, 0, -0.22, 0);
+    cube(0.12, 0.11, 0.6, brassMat, torso, 0, -0.22, 0);
 
-    // Coat tails / jacket lower hem
-    const coatHem = cube(0.7, 0.35, 0.44, mainMat, torso, 0, -0.62, 0);
+    // Dress / Coat hem flared outwards (cute doll skirt silhouette)
+    const skirtHem = cyl(0.36, 0.44, 0.32, 16, mainMat, torso, 0, -0.36, 0);
+    skirtHem.scale.set(1.05, 1, 0.95);
 
-    // 2. Realistic Legs with Knees and Leather Boots
-    function buildLeg(side) {
+    // 2. Cute Chibi Short Legs & Doll Shoes
+    function buildChibiLeg(side) {
       const legRoot = new T.Group();
-      legRoot.position.set(side * 0.2, 0.88, 0);
+      legRoot.position.set(side * 0.18, 0.82, 0);
       group.add(legRoot);
 
-      // Thigh
-      const thigh = cyl(0.16, 0.13, 0.68, 12, accentMat, legRoot, 0, -0.34, 0);
-      // Knee cap contour
-      sphere(0.13, 8, accentMat, legRoot, 0, -0.68, 0.04);
-      // Calf / Shin
-      const shin = cyl(0.13, 0.12, 0.62, 12, accentMat, legRoot, 0, -0.99, 0);
+      // Cute short chubby leg
+      cyl(0.14, 0.12, 0.52, 10, accentMat, legRoot, 0, -0.24, 0);
 
-      // Detailed riding / walking boot
-      const boot = cyl(0.14, 0.125, 0.45, 12, darkBootMat, legRoot, 0, -1.15, 0);
-      // Foot shoe with heel and toe cap
-      const foot = cube(0.24, 0.16, 0.42, darkBootMat, legRoot, 0, -1.35, 0.07);
-      // Small heel
-      cube(0.24, 0.08, 0.14, darkBootMat, legRoot, 0, -1.41, -0.06);
+      // Round little doll shoe with white socks rim
+      cyl(0.13, 0.13, 0.08, 10, whiteFabricMat, legRoot, 0, -0.48, 0);
+      const shoe = sphere(0.15, 10, darkShoeMat, legRoot, 0, -0.56, 0.05);
+      shoe.scale.set(0.95, 0.8, 1.4); // cute rounded moccasin / mary jane doll shoe
 
       return legRoot;
     }
 
-    const legL = buildLeg(-1);
-    const legR = buildLeg(1);
+    const legL = buildChibiLeg(-1);
+    const legR = buildChibiLeg(1);
     legs = [legL, legR];
 
-    // 3. Realistic Arms with Shoulders, Elbows and Articulated Hands
-    function buildArm(side) {
+    // 3. Cute Chibi Arms & Plush Mittens / Hands
+    function buildChibiArm(side) {
       const armRoot = new T.Group();
-      armRoot.position.set(side * 0.45, 1.76, 0);
+      armRoot.position.set(side * 0.42, 1.48, 0);
       group.add(armRoot);
 
-      // Shoulder pad
-      sphere(0.16, 10, mainMat, armRoot, 0, 0, 0);
-      // Upper arm
-      const upper = cyl(0.13, 0.11, 0.58, 10, mainMat, armRoot, side * 0.02, -0.3, 0);
-      // Elbow contour
-      sphere(0.11, 8, mainMat, armRoot, side * 0.02, -0.59, 0);
-      // Forearm with cuff
-      const forearm = cyl(0.11, 0.095, 0.52, 10, mainMat, armRoot, side * 0.02, -0.85, 0);
-      cube(0.22, 0.08, 0.22, accentMat, armRoot, side * 0.02, -1.08, 0);
+      // Round shoulder puff
+      sphere(0.15, 10, mainMat, armRoot, 0, 0, 0);
+      // Cute short arm
+      cyl(0.11, 0.095, 0.48, 10, mainMat, armRoot, side * 0.02, -0.24, 0);
+      // Sleeve cuff
+      cube(0.2, 0.07, 0.2, (charId === 'doctor' ? accentMat : whiteFabricMat), armRoot, side * 0.02, -0.47, 0);
 
-      // Realistic Human Hand with Fingers & Thumb
+      // Round doll mitten / hand with cute stub thumb
       const hand = new T.Group();
-      hand.position.set(side * 0.02, -1.22, 0);
+      hand.position.set(side * 0.02, -0.58, 0);
       armRoot.add(hand);
 
-      // Palm
-      cube(0.14, 0.18, 0.08, skinMat, hand, 0, 0, 0);
-      // Fingers curled naturally
-      for (let fi = -1; fi <= 1; fi++) {
-        cube(0.04, 0.12, 0.07, skinMat, hand, fi * 0.045, -0.14, 0.01);
-      }
-      // Thumb
-      const thumb = cube(0.045, 0.1, 0.06, skinMat, hand, -side * 0.08, -0.04, 0.03);
-      thumb.rotation.z = side * 0.4;
+      const palm = sphere(0.11, 10, skinMat, hand, 0, 0, 0);
+      palm.scale.set(0.9, 1.1, 0.8);
+      const thumb = sphere(0.055, 8, skinMat, hand, -side * 0.08, 0.02, 0.03);
 
       return armRoot;
     }
 
-    armL = buildArm(-1);
-    armR = buildArm(1);
+    armL = buildChibiArm(-1);
+    armR = buildChibiArm(1);
 
-    // 4. Realistic Head & Facial Features
-    const headG = buildRealisticHead(group, skinMat, customHairMat);
+    // 4. Head with signature features
+    const headG = buildChibiHead(group, skinMat, hairMat, charId);
 
-    // 5. Authentic European Gothic Hairstyle & Detailed Accessories
-    if (charId === 'mercenary') {
-      // Tactical hood pulled up + bangs visible
-      const hood = cyl(0.44, 0.48, 0.62, 12, mainMat, headG, 0, 0.1, -0.06);
-      hood.scale.set(1.02, 1, 1.14);
-      // Front hair bangs peeking out
-      cube(0.32, 0.12, 0.14, customHairMat, headG, 0, 0.26, 0.32);
-      // Reinforced leather forearm guard with metal rivets
-      cube(0.24, 0.32, 0.24, leatherMat, armL, -0.02, -0.85, 0);
-      cube(0.24, 0.32, 0.24, leatherMat, armR, 0.02, -0.85, 0);
-    } else if (charId === 'doctor') {
-      // Elegant parted brunette hair with bun
-      sphere(0.4, 12, customHairMat, headG, 0, 0.18, -0.08);
-      sphere(0.22, 10, customHairMat, headG, 0, 0.12, -0.38); // Chignon hair bun
-      // Nurse cap with medical emblem
-      const cap = cyl(0.32, 0.36, 0.16, 12, mainMat, headG, 0, 0.44, 0.02);
-      cube(0.1, 0.04, 0.1, accentMat, cap, 0, 0.09, 0);
-      // Cross-body medicine leather bag
-      cube(0.32, 0.28, 0.18, mainMat, torso, 0.36, -0.38, 0.06);
-      cube(0.1, 0.1, 0.2, new T.MeshStandardMaterial({ color: 0xb52218 }), torso, 0.36, -0.38, 0.06);
+    // 5. High-Quality Character Specific Outfits & Signature Props
+    if (charId === 'doctor') {
+      // ===== 医生 (Emily Dyer) 特色设计 =====
+      // (1) 经典优雅深棕色波浪卷发 + 甜美刘海 + 淑女发髻
+      // 优雅刘海与后脑勺饱满发型
+      const hairBase = sphere(0.51, 14, hairMat, headG, 0, 0.08, -0.06);
+      hairBase.scale.set(1.08, 1, 1.05);
+
+      // 两侧标志性的温柔内卷发束 (Curled side bangs)
+      for (const side of [-1, 1]) {
+        const sideCurl = cyl(0.08, 0.06, 0.36, 8, hairMat, headG, side * 0.45, -0.16, 0.18);
+        sideCurl.rotation.z = -side * 0.25;
+        sphere(0.07, 8, hairMat, headG, side * 0.49, -0.32, 0.18);
+      }
+      // 前额可爱分边刘海
+      const frontBangs = cube(0.44, 0.14, 0.15, hairMat, headG, 0, 0.32, 0.42);
+      frontBangs.rotation.x = -0.18;
+
+      // 后脑优雅淑女发髻 (Chignon Bun)
+      const bun = sphere(0.25, 12, hairMat, headG, 0, 0.06, -0.48);
+      bun.scale.set(1.15, 1, 0.85);
+
+      // (2) 标志性维多利亚式护士帽 (Nurse Cap)
+      const capG = new T.Group();
+      capG.position.set(0, 0.48, 0.04);
+      headG.add(capG);
+
+      const capMat = new T.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+      const capBase = cyl(0.36, 0.42, 0.18, 14, capMat, capG, 0, 0, 0);
+      capBase.scale.set(1.1, 1, 0.85);
+      // 护士帽正面蓝色/青色十字徽章 (Medical Cross Emblem)
+      const crossMat = new T.MeshStandardMaterial({ color: 0x22628b, roughness: 0.6 });
+      cube(0.12, 0.045, 0.02, crossMat, capG, 0, 0.02, 0.36);
+      cube(0.045, 0.12, 0.02, crossMat, capG, 0, 0.02, 0.36);
+
+      // (3) 护士围裙与深蓝翻领缎带蝴蝶结 (Ribbon Bowtie)
+      const bowMat = new T.MeshStandardMaterial({ color: 0x1f5478, roughness: 0.7 });
+      const bowCenter = sphere(0.045, 8, bowMat, torso, 0, 0.36, 0.36);
+      const bowL = cone(0.06, 0.11, 6, bowMat, torso, -0.07, 0.36, 0.35);
+      bowL.rotation.z = Math.PI / 2;
+      const bowR = cone(0.06, 0.11, 6, bowMat, torso, 0.07, 0.36, 0.35);
+      bowR.rotation.z = -Math.PI / 2;
+
+      // (4) 灵魂随身道具 1：复古古典大注射器 / 针筒 (Antique Syringe)
+      // 医生最重要的治疗道具！背在身后或斜跨身侧
+      const syringeG = new T.Group();
+      syringeG.position.set(0.38, 0.08, -0.26);
+      syringeG.rotation.set(-0.35, 0.2, 0.45);
+      torso.add(syringeG);
+
+      // 铜质推杆手柄 (Plunger)
+      const needleMetal = new T.MeshStandardMaterial({ color: 0xc8b270, metalness: 0.8, roughness: 0.3 });
+      torso.castShadow = true;
+      cyl(0.07, 0.07, 0.03, 10, needleMetal, syringeG, 0, 0.35, 0); // thumb ring
+      cyl(0.02, 0.02, 0.22, 8, needleMetal, syringeG, 0, 0.22, 0);  // rod
+      // 玻璃药液管 (Glass Barrel with emerald healing medicine)
+      const glassMat = new T.MeshStandardMaterial({ color: 0x82e2c8, transparent: true, opacity: 0.75, roughness: 0.15 });
+      cyl(0.068, 0.068, 0.34, 12, glassMat, syringeG, 0, 0.02, 0);
+      // 金属固定环与刻度箍
+      cyl(0.074, 0.074, 0.04, 10, needleMetal, syringeG, 0, 0.18, 0);
+      cyl(0.074, 0.074, 0.04, 10, needleMetal, syringeG, 0, -0.15, 0);
+      // 金属针尖 (Needle Tip)
+      cyl(0.012, 0.012, 0.22, 6, new T.MeshStandardMaterial({ color: 0xd6d9db, metalness: 0.9, roughness: 0.2 }), syringeG, 0, -0.27, 0);
+
+      // (5) 随身道具 2：复古牛皮急救医药箱 (Vintage First-Aid Kit)
+      // 佩戴在左侧腰间
+      const medKitG = new T.Group();
+      medKitG.position.set(-0.36, -0.24, 0.08);
+      medKitG.rotation.y = 0.2;
+      torso.add(medKitG);
+
+      // 棕色皮革箱体
+      const bagMat = new T.MeshStandardMaterial({ color: 0x5a3922, roughness: 0.75 });
+      cube(0.24, 0.22, 0.14, bagMat, medKitG, 0, 0, 0);
+      // 金属铜扣
+      cube(0.06, 0.06, 0.15, brassMat, medKitG, 0, 0.04, 0);
+      // 箱面经典红十字急救标志
+      const redCrossMat = new T.MeshStandardMaterial({ color: 0xc42018, roughness: 0.7 });
+      cube(0.11, 0.032, 0.01, redCrossMat, medKitG, 0, -0.01, 0.075);
+      cube(0.032, 0.11, 0.01, redCrossMat, medKitG, 0, -0.01, 0.075);
+      // 肩带/背带
+      cube(0.04, 0.65, 0.02, leatherMat, torso, -0.15, 0.05, 0.28).rotation.z = -0.55;
+
+    } else if (charId === 'mercenary') {
+      // 佣兵特色：战术兜帽 + 额前发丝 + 护腕
+      const hoodMat = new T.MeshStandardMaterial({ color: mainColor, roughness: 0.85 });
+      const hood = sphere(0.55, 14, hoodMat, headG, 0, 0.08, -0.04);
+      hood.scale.set(1.08, 1, 1.15);
+      cube(0.38, 0.14, 0.15, hairMat, headG, 0, 0.25, 0.38);
+      // 护腕
+      cube(0.24, 0.22, 0.24, leatherMat, armL, -0.02, -0.32, 0);
+      cube(0.24, 0.22, 0.24, leatherMat, armR, 0.02, -0.32, 0);
+
     } else if (charId === 'seer') {
-      // Deep medieval cloaked hood + leather blindfold
-      const hood = cyl(0.44, 0.47, 0.68, 12, mainMat, headG, 0, 0.12, -0.06);
-      hood.scale.set(1.02, 1, 1.15);
-      // Antiqued leather blindfold across eyes with subtle runes
-      cube(0.74, 0.14, 0.68, leatherMat, headG, 0, 0.05, 0.04);
-      // Realistic feathered messenger owl perched on left shoulder
+      // 先知特色：神秘兜帽 + 复古皮眼罩 + 肩头站立的圆滚滚小猫头鹰
+      const hood = sphere(0.55, 14, mainMat, headG, 0, 0.08, -0.04);
+      hood.scale.set(1.08, 1, 1.15);
+      // 皮质眼罩
+      cube(0.85, 0.15, 0.65, leatherMat, headG, 0, 0.02, 0.15);
+      // 圆滚滚的 Q 版小猫头鹰 (Chibi Owl)
       const owlG = new T.Group();
-      owlG.position.set(-0.44, 0.48, 0);
+      owlG.position.set(-0.46, 0.44, 0);
       torso.add(owlG);
-      sphere(0.11, 8, new T.MeshStandardMaterial({ color: 0x455663 }), owlG, 0, 0, 0);
-      cone(0.045, 0.1, 5, new T.MeshStandardMaterial({ color: 0xc49b39 }), owlG, 0, 0, 0.12);
-      // Wing fold
-      cube(0.06, 0.14, 0.16, new T.MeshStandardMaterial({ color: 0x2a3842 }), owlG, -0.08, -0.02, 0);
+      sphere(0.14, 10, new T.MeshStandardMaterial({ color: 0x4a5d6e }), owlG, 0, 0, 0);
+      cone(0.05, 0.1, 5, brassMat, owlG, 0, 0, 0.14).rotation.x = Math.PI / 2;
+      // 猫头鹰纽扣眼
+      for (const os of [-1, 1]) {
+        sphere(0.038, 6, new T.MeshBasicMaterial({ color: 0x111111 }), owlG, os * 0.06, 0.04, 0.12);
+      }
+
     } else if (charId === 'perfumer') {
-      // Coiffed Victorian updo with floral ornament
-      sphere(0.4, 12, customHairMat, headG, 0, 0.2, -0.08);
-      // Wide aristocratic sunhat with black lace ribbon
-      cyl(0.65, 0.65, 0.05, 18, accentMat, headG, 0, 0.38, 0);
-      cyl(0.32, 0.38, 0.22, 14, mainMat, headG, 0, 0.5, 0);
-      // Glass vintage atomizer perfume spray bottle in right hand
-      const flask = cyl(0.07, 0.09, 0.22, 10, new T.MeshStandardMaterial({ color: 0xd98bc2, transparent: true, opacity: 0.75, roughness: 0.1 }), armR, 0.02, -1.35, 0.08);
-      sphere(0.065, 8, new T.MeshStandardMaterial({ color: 0x401633 }), flask, 0, 0.14, 0);
+      // 调香师特色：复古贵族发髻 + 宽檐淑女帽 + 复古香水喷雾瓶
+      sphere(0.5, 12, hairMat, headG, 0, 0.12, -0.08);
+      // 宽檐帽
+      cyl(0.72, 0.72, 0.06, 18, accentMat, headG, 0, 0.36, 0);
+      cyl(0.36, 0.42, 0.22, 14, mainMat, headG, 0, 0.48, 0);
+      // 复古香水瓶
+      const flaskMat = new T.MeshStandardMaterial({ color: 0xda92c6, transparent: true, opacity: 0.8 });
+      const flask = cyl(0.08, 0.1, 0.24, 10, flaskMat, armR, 0.02, -0.72, 0.08);
+      sphere(0.07, 8, new T.MeshStandardMaterial({ color: 0x5a1848 }), flask, 0, 0.16, 0);
+
     } else if (charId === 'forward') {
-      // Molded leather retro rugby headgear
-      const helmet = sphere(0.42, 12, accentMat, headG, 0, 0.08, 0);
-      helmet.scale.set(1.02, 0.98, 1.04);
-      // Padded shoulder pads
-      sphere(0.2, 8, mainMat, torso, -0.42, 0.36, 0);
-      sphere(0.2, 8, mainMat, torso, 0.42, 0.36, 0);
-      // Leather rugby ball held under left arm
-      const ball = sphere(0.16, 10, leatherMat, armL, -0.04, -0.42, 0);
-      ball.scale.set(1.5, 0.95, 0.95);
+      // 前锋：复古皮质橄榄球头盔 + 抱在怀里的橄榄球
+      const helmet = sphere(0.52, 12, accentMat, headG, 0, 0.08, 0);
+      helmet.scale.set(1.06, 1, 1.08);
+      const ball = sphere(0.18, 10, leatherMat, armL, -0.05, -0.32, 0);
+      ball.scale.set(1.4, 0.9, 0.9);
+
     } else if (charId === 'coordinator') {
-      // Neatly styled hair + service peaked visor cap
-      sphere(0.38, 12, customHairMat, headG, 0, 0.15, -0.06);
-      const cap = cyl(0.42, 0.38, 0.2, 14, mainMat, headG, 0, 0.38, 0.04);
-      cube(0.38, 0.05, 0.28, darkBootMat, cap, 0, -0.06, 0.2); // shiny visor
-      // Side holster at waist
-      cube(0.14, 0.28, 0.15, leatherMat, torso, -0.38, -0.35, 0);
+      // 空军：军制大檐帽
+      sphere(0.48, 12, hairMat, headG, 0, 0.1, -0.06);
+      const cap = cyl(0.46, 0.42, 0.18, 14, mainMat, headG, 0, 0.38, 0.04);
+      cube(0.42, 0.04, 0.28, darkShoeMat, cap, 0, -0.06, 0.22);
+
     } else {
-      // Natural textured wavy hair with layered side-part
-      sphere(0.41, 12, customHairMat, headG, 0, 0.2, -0.06);
-      cube(0.26, 0.18, 0.18, customHairMat, headG, -0.15, 0.24, 0.25);
+      // 通用可爱发型
+      sphere(0.5, 12, hairMat, headG, 0, 0.14, -0.06);
+      cube(0.32, 0.14, 0.15, hairMat, headG, -0.1, 0.28, 0.38);
     }
 
     group.userData.legs = legs;
@@ -345,38 +426,38 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     if (!torso || !headG || !armL || !armR || !legL || !legR) return;
 
     if (carried) {
-      // Carried on Balloons (牵气球状态 - 悬吊半空剧烈挣扎、悬空乱蹬、双臂抓挠求生)
-      torso.position.set(0, 1.48, 0);
+      // Carried on Balloons (牵气球状态 - 悬吊半空挣扎乱蹬)
+      torso.position.set(0, 1.25, 0);
       torso.rotation.set(-0.35 + Math.sin(time * 6) * 0.12, 0, Math.cos(time * 6) * 0.15);
-      headG.position.set(0, 2.38, 0.12);
+      headG.position.set(0, 1.95, 0.1);
       headG.rotation.set(0.25 + Math.sin(time * 6) * 0.1, 0, Math.sin(time * 6) * 0.12);
 
-      legL.position.set(-0.2, 0.88, 0);
-      legR.position.set(0.2, 0.88, 0);
+      legL.position.set(-0.18, 0.82, 0);
+      legR.position.set(0.18, 0.82, 0);
       legL.rotation.set(0.45 + Math.sin(time * 9) * 0.85, 0, -0.15);
       legR.rotation.set(0.45 - Math.sin(time * 9) * 0.85, 0, 0.15);
 
-      armL.position.set(-0.45, 1.76, 0);
-      armR.position.set(0.45, 1.76, 0);
+      armL.position.set(-0.42, 1.48, 0);
+      armR.position.set(0.42, 1.48, 0);
       armL.rotation.set(-1.1 + Math.sin(time * 7) * 0.4, 0.3, -0.4);
       armR.rotation.set(-1.1 - Math.cos(time * 7) * 0.4, -0.3, 0.4);
       return;
     }
 
     if (seated) {
-      // Seated on Rocket Chair: bound with thick ropes, thighs flat on chair base, shins dangling down, hands bound behind chair back
-      torso.position.set(0, 1.25, 0.05);
+      // Seated on Rocket Chair (狂欢之椅上绑住 - 双腿平放、双手在后)
+      torso.position.set(0, 1.08, 0.05);
       torso.rotation.set(-0.12, 0, Math.sin(time * 3) * 0.03);
-      headG.position.set(0, 2.15, 0.08);
+      headG.position.set(0, 1.78, 0.08);
       headG.rotation.set(0.15, 0, Math.sin(time * 3) * 0.05);
 
-      legL.position.set(-0.2, 0.72, 0.35);
-      legR.position.set(0.2, 0.72, 0.35);
+      legL.position.set(-0.18, 0.7, 0.28);
+      legR.position.set(0.18, 0.7, 0.28);
       legL.rotation.set(-1.52, 0, -0.05 + Math.sin(time * 4) * 0.08);
       legR.rotation.set(-1.52, 0, 0.05 - Math.sin(time * 4) * 0.08);
 
-      armL.position.set(-0.4, 1.35, -0.25);
-      armR.position.set(0.4, 1.35, -0.25);
+      armL.position.set(-0.38, 1.25, -0.2);
+      armR.position.set(0.38, 1.25, -0.2);
       armL.rotation.set(0.85, 0, 0.4);
       armR.rotation.set(0.85, 0, -0.4);
       return;
@@ -384,71 +465,71 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
 
     if (vault) {
       const t = vault.elapsed / vault.duration;
-      torso.position.set(0, 1.48, 0);
+      torso.position.set(0, 1.25, 0);
       torso.rotation.set(-0.4, 0, 0);
-      headG.position.set(0, 2.38, 0);
+      headG.position.set(0, 1.95, 0);
       headG.rotation.set(-0.2, 0, 0);
-      armL.position.set(-0.45, 1.76, 0);
-      armR.position.set(0.45, 1.76, 0);
+      armL.position.set(-0.42, 1.48, 0);
+      armR.position.set(0.42, 1.48, 0);
       armL.rotation.set(-1.2, 0, -0.3);
       armR.rotation.set(-1.2, 0, 0.3);
-      legL.position.set(-0.2, 0.88, 0);
-      legR.position.set(0.2, 0.88, 0);
+      legL.position.set(-0.18, 0.82, 0);
+      legR.position.set(0.18, 0.82, 0);
       legL.rotation.set(-1.4 * Math.sin(t * Math.PI), 0, 0);
       legR.rotation.set(0.8 * Math.sin(t * Math.PI), 0, 0);
       return;
     }
 
     if (health <= 0) {
-      // Downed: crouched on ground holding head with both arms (抱头蹲下与爬行)
-      torso.position.set(0, 0.85 + (moving ? Math.sin(time * 5) * 0.04 : 0), 0);
+      // Downed: crouched on ground holding head (倒地抱头趴爬)
+      torso.position.set(0, 0.72 + (moving ? Math.sin(time * 5) * 0.04 : 0), 0);
       torso.rotation.set(0.65, 0, moving ? Math.sin(time * 5) * 0.12 : 0);
-      headG.position.set(0, 1.35, 0.45);
+      headG.position.set(0, 1.15, 0.38);
       headG.rotation.set(0.55, 0, 0);
 
-      legL.position.set(-0.2, 0.32, -0.15);
-      legR.position.set(0.2, 0.32, -0.15);
+      legL.position.set(-0.18, 0.3, -0.12);
+      legR.position.set(0.18, 0.3, -0.12);
       legL.rotation.set(-1.45 + (moving ? Math.sin(time * 5) * 0.25 : 0), 0, 0);
       legR.rotation.set(-1.45 - (moving ? Math.sin(time * 5) * 0.25 : 0), 0, 0);
 
-      armL.position.set(-0.3, 1.55, 0.35);
-      armR.position.set(0.3, 1.55, 0.35);
+      armL.position.set(-0.28, 1.35, 0.28);
+      armR.position.set(0.28, 1.35, 0.28);
       armL.rotation.set(-1.85, 0.45, 0.7 + (moving ? Math.sin(time * 5) * 0.08 : 0));
       armR.rotation.set(-1.85, -0.45, -0.7 - (moving ? Math.sin(time * 5) * 0.08 : 0));
       return;
     }
 
     if (health === 1) {
-      // Injured: clutching wounded abdomen with limping/stumbling gait (捂肚踉跄)
-      torso.position.set(0, 1.48, 0);
-      torso.rotation.set(0.25, 0, moving ? Math.sin(time * 6.5) * 0.18 : 0.08);
-      headG.position.set(0, 2.38, 0);
-      headG.rotation.set(0.18, 0, moving ? Math.sin(time * 6.5) * 0.1 : 0);
+      // Injured: clutching wounded abdomen with limping/stumbling gait (受伤捂肚蹒跚)
+      torso.position.set(0, 1.25, 0);
+      torso.rotation.set(0.22, 0, moving ? Math.sin(time * 6.5) * 0.16 : 0.06);
+      headG.position.set(0, 1.95, 0);
+      headG.rotation.set(0.16, 0, moving ? Math.sin(time * 6.5) * 0.08 : 0);
 
-      armL.position.set(-0.3, 1.42, 0.2);
+      armL.position.set(-0.28, 1.22, 0.18);
       armL.rotation.set(-0.85, 0.4, 0.55);
 
-      armR.position.set(0.45, 1.76, 0);
+      armR.position.set(0.42, 1.48, 0);
       armR.rotation.set(moving ? Math.sin(time * 6.5) * 0.45 : 0.1, 0, 0.2);
 
-      legL.position.set(-0.2, 0.88, 0);
-      legR.position.set(0.2, 0.88, 0);
+      legL.position.set(-0.18, 0.82, 0);
+      legR.position.set(0.18, 0.82, 0);
       const limpPhase = time * 6.5;
       legL.rotation.set(moving ? Math.sin(limpPhase) * 0.65 : 0, 0, 0);
       legR.rotation.set(moving ? Math.sin(limpPhase + 0.6) * 0.35 : 0, 0, 0);
       return;
     }
 
-    // Healthy (health >= 2)
-    torso.position.set(0, 1.48, 0);
-    torso.rotation.set(0, 0, 0);
-    headG.position.set(0, 2.38, 0);
-    headG.rotation.set(0, 0, 0);
+    // Healthy (health >= 2) - Cute bobbing walk
+    torso.position.set(0, 1.25 + (moving ? Math.abs(Math.sin(time * 12)) * 0.04 : 0), 0);
+    torso.rotation.set(0, 0, moving ? Math.sin(time * 10) * 0.04 : 0);
+    headG.position.set(0, 1.95, 0);
+    headG.rotation.set(0, 0, moving ? Math.sin(time * 10) * 0.05 : 0);
 
-    armL.position.set(-0.45, 1.76, 0);
-    armR.position.set(0.45, 1.76, 0);
-    legL.position.set(-0.2, 0.88, 0);
-    legR.position.set(0.2, 0.88, 0);
+    armL.position.set(-0.42, 1.48, 0);
+    armR.position.set(0.42, 1.48, 0);
+    legL.position.set(-0.18, 0.82, 0);
+    legR.position.set(0.18, 0.82, 0);
 
     const walkSpeed = sprint ? 20 : 10;
     const walkPhase = time * walkSpeed;
