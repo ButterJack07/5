@@ -34,14 +34,32 @@ function initLANMultiplayer(){
   const statusEl=$('#lanStatus'),btn=$('#lanJoinBtn'),inputRoom=$('#lanRoom'),inputName=$('#lanName'),inputHost=$('#lanHost');
   const lobby=$('#roomLobby'),startBtn=$('#startLanMatchBtn'),leaveBtn=$('#leaveRoomBtn'),botsCheck=$('#fillBotsCheck');
   if(!statusEl||!btn)return;
-  const select=$('#serverChoice');select.onchange=()=>{if(select.value==='ali'){location.href='http://121.199.161.5/fogbound/';return;}if(select.value==='current')inputHost.value=location.host;else{inputHost.value='';inputHost.focus();}};
+  const select=$('#serverChoice');
+  function updateHostFromChoice(){
+    if(select.value==='ali'){
+      // 保持留在 GitHub 页面，通过阿里云转发服务进行联机中转，不发生页面跳转！
+      const isHttps=location.protocol==='https:';
+      inputHost.value=isHttps?'momentmap.top/fogbound':'121.199.161.5/fogbound';
+    }else if(select.value==='current'){
+      inputHost.value=location.host;
+    }else{
+      inputHost.value='';
+      inputHost.focus();
+    }
+  }
+  select.onchange=updateHostFromChoice;
   inputHost.addEventListener('change',()=>{if(select.value==='custom')select.selectedOptions[0].textContent=inputHost.value.trim()||'其他服务器（IP:端口）';});
 
   // Retrieve remembered nickname & host
   try{
     const savedName=localStorage.getItem('fogbound_nickname');if(savedName&&inputName)inputName.value=savedName;
     const savedHost=localStorage.getItem('fogbound_host');
-    if(inputHost)inputHost.value=location.hostname.endsWith('github.io')?(savedHost||''):location.host;
+    if(location.hostname.endsWith('github.io')){
+      select.value='ali';
+      inputHost.value=savedHost||(location.protocol==='https:'?'momentmap.top/fogbound':'121.199.161.5/fogbound');
+    }else if(inputHost){
+      inputHost.value=savedHost||location.host;
+    }
   }catch{}
 
   // Automatically fetch host LAN IP if connected to local Node server
@@ -84,21 +102,34 @@ function initLANMultiplayer(){
       return;
     }
 
-    statusEl.textContent='⏳ 正在连接...';
+    statusEl.textContent='⏳ 正在连接转发服务器...';
     try{
-      const cleanHost=targetHost.replace(/^https?:\/\//,'').replace(/^wss?:\/\//,'');
-      if(location.protocol==='https:'&&cleanHost!==location.host){statusEl.textContent='请直接打开服务器提供的游戏地址';return;}
-      const path=cleanHost===location.host?new URL('./ws',location.href).pathname:'/ws';
-      const wsUrl=`${location.protocol==='https:'?'wss':'ws'}://${cleanHost}${path}`;
+      const cleanHost=targetHost.replace(/^https?:\/\//,'').replace(/^wss?:\/\//,'').replace(/\/+$/,'');
+      const wsProto=location.protocol==='https:'?'wss':'ws';
+      let wsUrl;
+      if(cleanHost.includes('/')){
+        // 自带反代路径（如 momentmap.top/fogbound 或 121.199.161.5/fogbound）
+        wsUrl=`${wsProto}://${cleanHost}/ws`;
+      }else{
+        const path=cleanHost===location.host?new URL('./ws',location.href).pathname:'/ws';
+        wsUrl=`${wsProto}://${cleanHost}${path}`;
+      }
       lanSocket=new WebSocket(wsUrl);
     }catch(err){
       statusEl.textContent='✖ 联机地址格式错误';
-      alert('联机地址格式错误，请输入 IP:端口 (例如 192.168.1.5:5173)');
+      alert('联机地址格式错误，请输入 IP:端口 或服务器地址');
       return;
     }
 
+    lanSocket.onerror=(err)=>{
+      console.warn('WebSocket connection error:', err);
+      statusEl.textContent='✖ 无法连入转发服务（请检查网络或阿里云服务状态）';
+    };
+    lanSocket.onclose=()=>{
+      if(statusEl.textContent.includes('正在连接'))statusEl.textContent='✖ 连接被服务器拒绝或中断';
+    };
     lanSocket.onopen=()=>{
-      statusEl.textContent='✔ 已连入局域网';
+      statusEl.textContent='✔ 已连入转发服务器';
       $('#lanHall').hidden=false;sendAction(nickname,room);
     };
     lanSocket.onmessage=e=>{
@@ -210,7 +241,7 @@ function beginLANMatch(config){
   sharedMatch=true;
   settings(false);
   clearInput();
-  survivorMeshes.forEach(m=>three?.scene.remove(m.group));
+  survivorMeshes.forEach(m=>three?.scene?.remove(m.group));
   survivorMeshes.clear();
 
   const me=config?.roster?.find(p=>p.id===myLanId);
@@ -221,9 +252,9 @@ function beginLANMatch(config){
   }
 
   if(three){
-    if(three.player.updateCharacter) three.player.updateCharacter(game.characterId);
-    if(three.hunter.updateSkin) three.hunter.updateSkin(game.hunterId);
-    three.player.group.visible=game.role!=='hunter';
+    if(three.player?.updateCharacter) three.player.updateCharacter(game.characterId);
+    if(three.hunter?.updateSkin) three.hunter.updateSkin(game.hunterId);
+    if(three.player?.group) three.player.group.visible=game.role!=='hunter';
   }
 
   game.message=`同图联机已开始！[${lanRoomCode}]`;
@@ -667,7 +698,16 @@ function frame(t){
   requestAnimationFrame(frame);
 }
 setInterval(()=>{const held=!!keys.f||hunterSkillHeld;if(localMatch){const a=localMatch.actors.find(a=>a.id===myLanId);if(a)a.skillHeld=held;}else if(sharedMatch&&lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'hunter_skill',held:!document.hidden&&$('#settings').hidden&&held}));},50);
-window.addEventListener('error',event=>{const box=$('#message');box.textContent='游戏运行错误：'+event.message;box.classList.add('visible');console.error(event.error);});
+window.addEventListener('error',event=>{
+  console.error(event.error||event.message);
+  // 忽略网络加载、字体、图片等非脚本致命错误，避免影响游戏体验
+  if(!event.message||event.message.includes('Script error')||event.message.includes('WebSocket'))return;
+  const box=$('#message');
+  if(box){
+    box.textContent='运行提示：'+event.message;
+    box.classList.add('visible');
+  }
+});
 
 let lastSyncTime=0,lastCipherSyncTime=0;
 function broadcastLocalPosition(){
