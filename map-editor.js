@@ -102,7 +102,7 @@ export function normalizeMap(raw) {
     if (!t || !TILES[t.type] || MULTI_CELL_TYPES.has(t.type)) continue;
     const x = Math.trunc(t.x), y = Math.trunc(t.y);
     if (!inBounds(x, y)) continue;
-    const key = `${x},${y}`;
+    const key = `${t.type}:${x},${y}`;
     if (seen.has(key)) continue;
     seen.add(key);
     const tile = { type: t.type, x, y };

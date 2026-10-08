@@ -81,6 +81,20 @@ test('validation flags an exit not on manor wall', () => {
   assert.ok(result.errors.some(e => e.includes('逃生门')));
 });
 
+test('exit on manor wall and window on wall survive serialize round-trip', () => {
+  const map = createEmptyMap('叠加', 'medium');
+  placeTile(map, 'manorWall', 0, 5);
+  placeTile(map, 'exit', 0, 5);
+  placeTile(map, 'wall', 6, 6);
+  placeTile(map, 'window', 6, 6);
+  const back = deserializeMap(serializeMap(map));
+  assert.ok(back.tiles.some(t => t.type === 'manorWall' && t.x === 0 && t.y === 5), 'manor wall kept');
+  assert.ok(back.tiles.some(t => t.type === 'exit' && t.x === 0 && t.y === 5), 'exit kept on same cell');
+  assert.ok(back.tiles.some(t => t.type === 'wall' && t.x === 6 && t.y === 6), 'wall kept');
+  assert.ok(back.tiles.some(t => t.type === 'window' && t.x === 6 && t.y === 6), 'window kept on same cell');
+  assert.equal(validateMap(back).errors.length, 0);
+});
+
 test('structural footprints block overlap', () => {
   const map = createEmptyMap('建筑', 'medium');
   assert.equal(placeTile(map, 'windowHouse', 4, 4).ok, true);
