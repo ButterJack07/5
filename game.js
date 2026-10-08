@@ -71,6 +71,7 @@ export const ramps=map.ramps,upperFloors=map.upperFloors;
 // consumer (collision, rendering, match) sees the custom layout.
 // ---------------------------------------------------------------------------
 let activeCustomWorld=null;
+let activeCustomMapData=null;
 const DEFAULT_MAP_SNAPSHOT={
   walls: walls.map(w=>({...w})),
   obstacles: obstacles.map(o=>({...o})),
@@ -85,6 +86,7 @@ export function getActiveCustomWorld(){return activeCustomWorld;}
 export function applyCustomMapToWorld(mapData){
   const world=mapToWorld(mapData);
   activeCustomWorld=world;
+  activeCustomMapData=mapData;
   walls.splice(0,walls.length,...world.walls.map(w=>({...w})));
   obstacles.splice(0,obstacles.length,...world.obstacles.map(o=>({...o})));
   map.outdoorWindows.splice(0,map.outdoorWindows.length,...world.windows.map(w=>({...w})));
@@ -98,6 +100,7 @@ export function applyCustomMapToWorld(mapData){
 export function clearCustomMap(){
   if(!activeCustomWorld)return;
   activeCustomWorld=null;
+  activeCustomMapData=null;
   walls.splice(0,walls.length,...DEFAULT_MAP_SNAPSHOT.walls);
   obstacles.splice(0,obstacles.length,...DEFAULT_MAP_SNAPSHOT.obstacles);
   map.outdoorWindows.splice(0,map.outdoorWindows.length,...DEFAULT_MAP_SNAPSHOT.outdoorWindows);
@@ -135,7 +138,7 @@ export class Game{
     if(activeCustomWorld){
       const w=activeCustomWorld;
       const spawns=pickCustomSpawns(w,5);
-      this.customMap=true;
+      this.customMap=activeCustomMapData;
       this.customWorld=w;
       this.player={...spawns[0],angle:0,health:2,nickname:'我'};
       this.hunter={...spawns[1],angle:0};
