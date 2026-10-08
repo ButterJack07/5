@@ -14,6 +14,8 @@ files.add('survivor-ai.js');
 files.add('pathfinding.js');
 files.add('terror-shock.js');
 files.add('room-flow.js');
+files.add('map-editor.js');
+files.add('map-editor.html');
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
 // No third-party npm packages required so anyone on local Wi-Fi can play immediately.

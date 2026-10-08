@@ -24,7 +24,10 @@ let chairState=null;
 let teamActors=[];let lastShockTick=0,shockUntil=0;
 $('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;game.reset();$('#matchResults').hidden=true;showOverlay();return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'return_room'}));};
 let playMode='single',localMatch=null;
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';});
+document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.mode==='map'){location.href='map-editor.html';return;}
+  playMode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(v=>v.classList.toggle('selected',v===b));$('.lanBar').hidden=playMode!=='online';$('#start').hidden=playMode==='online';
+});
 let roomPhase='seats';
 let roomDeadline=0;const quickRoot=document.createElement('div');quickRoot.id='quickMessages';for(const [index,text] of quickMessages.entries()){const b=document.createElement('button');b.textContent=text;b.onclick=()=>{if(sharedMatch&&lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'quick_message',index}));};quickRoot.appendChild(b);}$('#stage').appendChild(quickRoot);
 $('#readyRoomBtn').onclick=()=>lanSocket?.send(JSON.stringify({type:'ready'}));
