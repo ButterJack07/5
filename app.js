@@ -118,7 +118,11 @@ function initLANMultiplayer(){
 
     lanSocket.onerror=(err)=>{
       console.warn('WebSocket connection error:', err);
-      statusEl.textContent='✖ 无法连入转发服务（请检查网络或阿里云服务状态）';
+      if(location.protocol==='https:'){
+        statusEl.innerHTML='✖ 因浏览器安全策略，<a href="http://121.199.161.5/fogbound/" style="color:#d6ed91;font-weight:bold;text-decoration:underline;" target="_blank">点此打开阿里专属服直接免配联机</a>';
+      }else{
+        statusEl.textContent='✖ 无法连入转发服务（请检查网络或阿里云服务状态）';
+      }
     };
     lanSocket.onclose=()=>{
       if(statusEl.textContent.includes('正在连接'))statusEl.textContent='✖ 连接被服务器拒绝或中断';
@@ -583,7 +587,7 @@ function drawThree(dt){
     m.position.y=1.5-t*1.1;
   });
 
-  gate.position.y=2.5+game.exit.p/100*6;
+  if(gate)gate.position.y=2.5+((game.exit?.p)||0)/100*6;
   if(three.hunter.group.userData.skinId!==game.hunterId)three.hunter.updateSkin(game.hunterId);
   three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
 
@@ -826,13 +830,18 @@ function updateHUD(){
         three.scene.add(group);
       }
     });
-    three.gate.position.x=game.exit.x;
-    three.generators.forEach((lamp,i)=>lamp.parent.position.set(game.generators[i].x,0,game.generators[i].y));
+    if(game.exit&&three.gate)three.gate.position.x=game.exit.x;
+    three.generators.forEach((lamp,i)=>{
+      const gen=game.generators[i];
+      if(gen&&lamp?.parent)lamp.parent.position.set(gen.x,0,gen.y);
+    });
     const smoke=three.scene.getObjectByName('skillSmoke');
-    smoke.visible=!!game.smoke;
-    if(game.smoke){
-      smoke.position.set(game.smoke.x,1,game.smoke.y);
-      smoke.scale.set(game.smoke.r,3,game.smoke.r);
+    if(smoke){
+      smoke.visible=!!game.smoke;
+      if(game.smoke){
+        smoke.position.set(game.smoke.x,1,game.smoke.y);
+        smoke.scale.set(game.smoke.r,3,game.smoke.r);
+      }
     }
 
     if(rules?.hatch){
@@ -846,12 +855,12 @@ function updateHUD(){
       hatch.material.color.setHex(rules.hatch.open?0x96c881:0x574e3e);
       if(rules.hatch.open&&distance(game.player,rules.hatch)<3)$('#prompt').textContent='E / 交互跳入地窖';
     }
-    three.gate.visible=false;
+    if(three.gate)three.gate.visible=false;
     for(const m of three.scene.children){
       if(m.name==='upperFloor'||m.name==='buildingRoof'){
         m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;
       }
-      if(m.name==='escapeGate'){
+      if(m.name==='escapeGate'&&m.userData?.exit){
         const e=game.exits.find(e=>e.x===m.userData.exit.x);
         m.position.y=2.5+(e?.p||0)/100*6;
       }
@@ -860,15 +869,15 @@ function updateHUD(){
       for(const [id,model] of survivorMeshes){
         model.group.traverse(o=>{
           if(o.material?.emissive){
-            o.material.emissive.setHex(rules?.reveal.includes(id)?0x704f15:0);
-            o.material.depthTest=!rules?.reveal.includes(id);
+            o.material.emissive.setHex(rules?.reveal?.includes(id)?0x704f15:0);
+            o.material.depthTest=!rules?.reveal?.includes(id);
           }
         });
       }
     }
     if(mi){
-      three.player.group.visible=game.role!=='hunter'&&me?.hidden==null;
-      for(const [id,m] of survivorMeshes)m.group.visible=chairState.actors.find(a=>a.id===id)?.hidden==null;
+      if(three.player?.group)three.player.group.visible=game.role!=='hunter'&&me?.hidden==null;
+      for(const [id,m] of survivorMeshes)m.group.visible=chairState?.actors?.find(a=>a.id===id)?.hidden==null;
     }
   }
 
