@@ -56,7 +56,8 @@ function initLANMultiplayer(){
     const savedHost=localStorage.getItem('fogbound_host');
     if(location.hostname.endsWith('github.io')){
       select.value='ali';
-      inputHost.value=savedHost||(location.protocol==='https:'?'momentmap.top/fogbound':'121.199.161.5/fogbound');
+      const defaultAli=location.protocol==='https:'?'momentmap.top/fogbound':'121.199.161.5/fogbound';
+      inputHost.value=(savedHost&&!savedHost.includes('localhost')&&!savedHost.includes('127.0.0.1'))?savedHost:defaultAli;
     }else if(inputHost){
       inputHost.value=savedHost||location.host;
     }
@@ -85,14 +86,8 @@ function initLANMultiplayer(){
 
     let targetHost=(inputHost?.value||'').trim();
     if(!targetHost){
-      if(location.hostname.endsWith('github.io')){
-        alert('你当前正在 GitHub Pages 在线网页浏览。局域网联机需要在局域网中一台电脑上运行 node server.js，并在地址栏输入该电脑的 IP:5173 即可一键联机！');
-        targetHost=prompt('请输入运行 node server.js 电脑的局域网 IP:端口 (例如 192.168.1.5:5173)：')||'';
-        if(!targetHost)return;
-        inputHost.value=targetHost;
-      }else{
-        targetHost=location.host||'localhost:5173';
-      }
+      targetHost=location.protocol==='https:'?'momentmap.top/fogbound':(location.host||'121.199.161.5/fogbound');
+      if(inputHost)inputHost.value=targetHost;
     }
     try{localStorage.setItem('fogbound_host',targetHost);}catch{}
 
