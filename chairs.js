@@ -8,9 +8,36 @@ export class ChairSystem{
   update(match,dt){this.actors=match.actors;const hunter=match.actors.find(a=>a.role==='hunter'),h=hunter.sim;const pressed=!!hunter.input.interact&&!this.lastInteract;this.lastInteract=!!hunter.input.interact;const wasCarried=this.carried;
     for(const c of this.chairs)if(c.occupant){c.progress=Math.min(60,c.progress+dt);if(c.progress>=60){const a=this.actors.find(a=>a.id===c.occupant);if(a)this.eliminate(a);}}
     const nearVictim=this.actors.find(a=>a.role==='survivor'&&a.sim.health<=0&&!a.eliminated&&a.seated==null&&distance(a.sim.player,h.hunter)<3);
-    if(!this.carried&&nearVictim&&(pressed||hunter.bot)&&!h.attack&&h.hunterAttackCooldown===0&&h.stun===0){this.carried=nearVictim.id;}
-    if(this.carried){const victim=this.actors.find(a=>a.id===this.carried);if(h.stun>0){this.carried=null;victim.sim.player.z=h.hunter.z||0;h.updateFalls(dt);}else{Object.assign(victim.sim.player,{x:h.hunter.x,y:h.hunter.y,z:(h.hunter.z||0)+1.5});const empty=this.chairs.filter(c=>!c.occupant).sort((a,b)=>distance(a,h.hunter)-distance(b,h.hunter));if(empty[0]&&distance(empty[0],h.hunter)<3&&(pressed&&wasCarried||hunter.bot))this.hang(victim,empty[0]);if(hunter.bot&&empty[0]){const dx=empty[0].x-h.hunter.x,dy=empty[0].y-h.hunter.y,l=Math.hypot(dx,dy)||1;h.move(h.hunter,dx/l*7*dt,dy/l*7*dt);}}}
-    for(const a of this.actors.filter(a=>a.role==='survivor')){const c=this.chairs.find(c=>c.occupant&&distance(c,a.sim.player)<3);if(a.sim.health<=0||a.seated!=null||!c){this.rescues.delete(a.id);continue;}const request=a.input.interact;if(request&&!this.rescues.has(a.id))this.rescues.set(a.id,{chair:c.id,time:0});const action=this.rescues.get(a.id);if(!action)continue;if(Math.hypot(a.input.x||0,a.input.y||0)>.1){this.rescues.delete(a.id);continue;}action.time+=dt;if(action.time>=1)this.rescue(a,c);}
+    if(!this.carried&&nearVictim&&(pressed||hunter.bot)&&!h.attack&&!(h.hunterAttackCooldown>0)&&!(h.stun>0)){this.carried=nearVictim.id;}
+    if(this.carried){
+      const victim=this.actors.find(a=>a.id===this.carried);
+      // Allow hunter to manually drop carried survivor to ground if interact pressed while away from empty chairs
+      const emptyChairs=this.chairs.filter(c=>!c.occupant).sort((a,b)=>distance(a,h.hunter)-distance(b,h.hunter));
+      const nearEmptyChair=emptyChairs[0]&&distance(emptyChairs[0],h.hunter)<3;
+      if(h.stun>0||(pressed&&wasCarried&&!nearEmptyChair&&!hunter.bot)){
+        this.carried=null;
+        victim.sim.player.z=h.hunter.z||0;
+        victim.sim.player.x=h.hunter.x;victim.sim.player.y=h.hunter.y;
+        h.updateFalls(dt);
+      }else{
+        Object.assign(victim.sim.player,{x:h.hunter.x,y:h.hunter.y,z:(h.hunter.z||0)+1.5});
+        if(nearEmptyChair&&(pressed&&wasCarried||hunter.bot))this.hang(victim,emptyChairs[0]);
+        if(hunter.bot&&emptyChairs[0]){const dx=emptyChairs[0].x-h.hunter.x,dy=emptyChairs[0].y-h.hunter.y,l=Math.hypot(dx,dy)||1;h.move(h.hunter,dx/l*7*dt,dy/l*7*dt);}
+      }
+    }
+    for(const a of this.actors.filter(a=>a.role==='survivor')){
+      const c=this.chairs.find(c=>c.occupant&&distance(c,a.sim.player)<3);
+      if(a.sim.health<=0||a.seated!=null||!c){this.rescues.delete(a.id);continue;}
+      const request=a.input.interact;
+      if(request&&!this.rescues.has(a.id)){
+        // Mutual exclusion: only 1 survivor can rescue a chair at a time
+        const alreadyRescuing=[...this.rescues.entries()].some(([id,r])=>id!==a.id&&r.chair===c.id);
+        if(!alreadyRescuing)this.rescues.set(a.id,{chair:c.id,time:0});
+      }
+      const action=this.rescues.get(a.id);if(!action)continue;
+      if(Math.hypot(a.input.x||0,a.input.y||0)>.1){this.rescues.delete(a.id);continue;}
+      action.time+=dt;if(action.time>=1)this.rescue(a,c);
+    }
     for(const a of this.actors.filter(a=>a.role==='survivor'&&a.sim.health>0&&a.seated==null&&!a.escaped&&!a.eliminated)){const target=this.actors.find(b=>b!==a&&b.role==='survivor'&&b.sim.health<2&&!b.eliminated&&!b.escaped&&b.seated==null&&b.id!==this.carried&&distance(a.sim.player,b.sim.player)<3);if(!target||!a.input.interact||Math.hypot(a.input.x||0,a.input.y||0)>.1){this.heals.delete(a.id);continue;}a.sim.stopDecode();const prev=this.heals.get(a.id),time=prev?.target===target.id?prev.time+dt:dt;this.heals.set(a.id,{target:target.id,time});if(time>=4){target.sim.health=Math.min(2,target.sim.health+1);target.sim.player.health=target.sim.health;this.heals.delete(a.id);}}
   }
 }

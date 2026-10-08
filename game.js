@@ -184,7 +184,14 @@ export class Game{
   }
   get character(){return characters.find(c=>c.id===this.characterId)||characters[0];}
   selectCharacter(id){if(this.status!=='ready'||!characters.some(c=>c.id===id))return false;this.characterId=id;return true;}
-  resetState(){this.player={x:48,y:73,angle:0};this.hunter={x:12,y:20,angle:0};this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;this.footprints=[];this.sneak=false;this.lastStep={x:48,y:73};}
+  resetState(){
+    const survSpawns=[{x:32,y:78},{x:136,y:48},{x:164,y:125},{x:62,y:152},{x:28,y:35},{x:168,y:165},{x:36,y:115}];
+    const hunterSpawns=[{x:104,y:105},{x:48,y:65},{x:148,y:95}];
+    const sPos=survSpawns[Math.floor(Math.random()*survSpawns.length)];
+    const hPos=hunterSpawns[Math.floor(Math.random()*hunterSpawns.length)];
+    this.player={...sPos,angle:0};
+    this.hunter={...hPos,angle:0};
+    this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;this.sneak=false;}
   get heartbeat(){const d=distance(this.player,this.hunter);return d>=32?0:Math.min(1,Math.max(0,(32-d)/32));}
   start(){if(this.status==='ready'){this.configureMap();this.palletVaultLock=0;this.palletReleaseRequired=false;this.healing=false;this.healProgress=0;this.time=300;this.attack=null;this.status='playing';this.message='破译三台密码机，开启任意逃生门';}}
   get powered(){const n=this.generators.filter(g=>g.p>=100).length;return this.generators.length>=7?Math.min(3,n*3/5):n;}
@@ -310,11 +317,6 @@ export class Game{
     }
     if(this.healing){if(len>.1||this.health!==1||this.vault||this.dashRemaining>0){this.healing=false;this.healProgress=0;}else{this.healProgress=Math.min(100,this.healProgress+dt*100/3);if(this.healProgress>=100){this.health=2;this.healing=false;this.healProgress=0;this.message='自愈完成';}}}
     this.sneak=!!input.sneak;
-    this.footprints??=[];
-    for(let i=this.footprints.length-1;i>=0;i--){
-      this.footprints[i].time-=dt;
-      if(this.footprints[i].time<=0)this.footprints.splice(i,1);
-    }
     const dropping=this.palletVaultLock>0;this.palletVaultLock=Math.max(0,(this.palletVaultLock||0)-dt);
     if(!input.interact&&this.palletVaultLock===0)this.palletReleaseRequired=false;
     const locked=!!this.vault||this.dashRemaining>0||this.healing||dropping;
@@ -324,14 +326,6 @@ export class Game{
       if(this.decoding&&len>.1)this.stopDecode();
       const speed=(this.invincible>0?18:this.health===1?9:10)*(this.vaultBoost>0?1.3:1)*(this.sneak?0.55:1);
       this.move(this.player,x*speed*dt,y*speed*dt);
-      if(!this.sneak&&len>.1&&!this.vault){
-        this.lastStep??={x:this.player.x,y:this.player.y};
-        if(distance(this.player,this.lastStep)>=1.6){
-          this.footprints.push({x:this.player.x,y:this.player.y,z:this.player.z||0,angle:this.player.angle,time:4.5});
-          if(this.footprints.length>60)this.footprints.shift();
-          this.lastStep={x:this.player.x,y:this.player.y};
-        }
-      }
     }
     this.updateDecode(dt);const near=this.nearby,interaction=!!input.interact;this.interacting=false;if(!locked&&interaction&&near&&distance(near,this.player)<6){this.interacting=true;if(near.type==='pallet'&&!this.lastInteract&&distance(near,this.player)<3.5){near.ref.down=true;near.ref.drop=.4;this.message='放下木板';if(distance(near,this.hunter)<4){this.stun=3;this.message='木板命中！';}this.pathTimer=0;}else if((near.type==='window'||near.type==='palletVault')&&!this.lastInteract)this.beginVault(near);else if(len<.1&&near.type==='heal'){this.healProgress=Math.min(100,this.healProgress+dt*12.5);if(this.healProgress>=100){this.health=2;this.healProgress=0;this.message='包扎完成';}}else if(near.type==='generator'&&!this.lastInteract)this.startDecode(near.ref);else if(len<.1&&near.type==='exit'){near.ref.p=Math.min(100,near.ref.p+dt*25);if(near.ref.p===100)this.message='闸门已开启';}}this.lastInteract=interaction;
     if(this.pallets.some(p=>p.drop===.4)){this.palletVaultLock=1;this.palletReleaseRequired=true;}
