@@ -636,24 +636,93 @@ function drawThree(dt){
     }
   }
 
-  // 3D Teleport Beacon for Programmer aim
-  let tpBeacon=three.scene.getObjectByName('tpBeacon');
-  if(!tpBeacon){
-    tpBeacon=new three.T.Group();
-    tpBeacon.name='tpBeacon';
-    const ring=new three.T.Mesh(new three.T.RingGeometry(1.2,1.6,24),new three.T.MeshBasicMaterial({color:0x38bdf8,side:three.T.DoubleSide,transparent:true,opacity:0.85}));
-    ring.rotation.x=-Math.PI/2;
-    const beam=new three.T.Mesh(new three.T.CylinderGeometry(0.8,1.4,8,16),new three.T.MeshBasicMaterial({color:0x0284c7,transparent:true,opacity:0.35}));
-    beam.position.y=4;
-    tpBeacon.add(ring,beam);
-    three.scene.add(tpBeacon);
+  // 3D Teleport Auras for Programmer Aim (Highlighting ALL valid candidates)
+  let tpGroup=three.scene.getObjectByName('tpHighlightGroup');
+  if(!tpGroup){
+    tpGroup=new three.T.Group();
+    tpGroup.name='tpHighlightGroup';
+    for(let i=0;i<16;i++){
+      const node=new three.T.Group();
+      const ringMat=new three.T.MeshBasicMaterial({color:0x38bdf8,side:three.T.DoubleSide,transparent:true,opacity:0.85,depthTest:false});
+      const ring=new three.T.Mesh(new three.T.RingGeometry(1.2,1.6,24),ringMat);
+      ring.rotation.x=-Math.PI/2;
+      const beamMat=new three.T.MeshBasicMaterial({color:0x0284c7,transparent:true,opacity:0.35,depthTest:false});
+      const beam=new three.T.Mesh(new three.T.CylinderGeometry(0.8,1.3,12,16),beamMat);
+      beam.position.y=6;
+      const bracketMat=new three.T.MeshBasicMaterial({color:0xffdf30,side:three.T.DoubleSide,transparent:true,opacity:0.95,depthTest:false});
+      const bracket=new three.T.Mesh(new three.T.RingGeometry(1.7,1.95,16),bracketMat);
+      bracket.rotation.x=-Math.PI/2;
+      bracket.visible=false;
+      node.add(ring,beam,bracket);
+      node.visible=false;
+      node.userData={ring,beam,bracket};
+      tpGroup.add(node);
+    }
+    three.scene.add(tpGroup);
   }
-  if(game.progAiming&&game.progTarget){
-    tpBeacon.visible=true;
-    tpBeacon.position.set(game.progTarget.x,0.1+(game.progTarget.z||0),game.progTarget.y);
-    tpBeacon.rotation.y=time*3;
+
+  const isProgAiming=game.progAiming&&game.characterId==='programmer';
+  if(isProgAiming){
+    tpGroup.visible=true;
+    const candidates=game.getTeleportCandidates();
+    const sel=game.progTarget;
+
+    tpGroup.children.forEach((node,idx)=>{
+      if(idx<candidates.length){
+        const c=candidates[idx];
+        node.visible=true;
+        node.position.set(c.x,0.08+(c.z||0),c.y);
+        const isSelected=sel&&Math.hypot(c.x-sel.x,c.y-sel.y)<1.0;
+        const pulse=1+Math.sin(time*6)*0.12;
+
+        if(isSelected){
+          // Bright Golden Focus for Selected Target
+          node.userData.ring.material.color.setHex(0xffdf30);
+          node.userData.ring.material.opacity=0.95;
+          node.userData.ring.scale.set(1.4*pulse,1.4*pulse,1.4*pulse);
+          node.userData.beam.material.color.setHex(0xf59e0b);
+          node.userData.beam.material.opacity=0.65;
+          node.userData.beam.scale.set(1.3,1.2,1.3);
+          node.userData.bracket.visible=true;
+          node.userData.bracket.rotation.z=time*4;
+          node.userData.bracket.scale.set(1.3*pulse,1.3*pulse,1.3*pulse);
+        }else{
+          // Distinct X-Ray Outline Highlights for All Other Candidates
+          const col=c.targetType==='teammate'?0x34d399:c.targetType==='gate'?0xa855f7:0x38bdf8;
+          const beamCol=c.targetType==='teammate'?0x059669:c.targetType==='gate'?0x9333ea:0x0284c7;
+          node.userData.ring.material.color.setHex(col);
+          node.userData.ring.material.opacity=0.65;
+          node.userData.ring.scale.set(1,1,1);
+          node.userData.beam.material.color.setHex(beamCol);
+          node.userData.beam.material.opacity=0.28;
+          node.userData.beam.scale.set(0.9,0.9,0.9);
+          node.userData.bracket.visible=false;
+        }
+      }else{
+        node.visible=false;
+      }
+    });
+
+    candidates.forEach(c=>{
+      if(c.targetType==='cipher'&&three.generators[c.index]){
+        const m=three.generators[c.index];
+        const isSel=sel&&Math.hypot(c.x-sel.x,c.y-sel.y)<1.0;
+        m.material.emissive.setHex(isSel?0xffea00:0x00b4d8);
+        m.material.emissiveIntensity=isSel?3.5:2.2;
+      }
+    });
+
+    survivorMeshes.forEach((mesh,id)=>{
+      const isSel=sel&&sel.targetType==='teammate'&&(sel.id===id||sel.name===id);
+      mesh.group.traverse(o=>{
+        if(o.isMesh&&o.material&&!o.material.map){
+          o.material.emissive?.setHex(isSel?0xffea00:0x22c55e);
+          o.material.emissiveIntensity=isSel?2.5:1.2;
+        }
+      });
+    });
   }else{
-    tpBeacon.visible=false;
+    tpGroup.visible=false;
   }
 
   // Single authoritative camera update and single render pass per frame

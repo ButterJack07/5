@@ -214,10 +214,10 @@ export class Game{
     return true;
   }
   getTeleportCandidates(){
-    const peers=(this.survivors||[]).filter(s=>s!==this.player&&(s.health??2)>0&&!s.escaped&&!s.eliminated).map(s=>({...s,targetType:'teammate',name:s.nickname||'队友'}));
-    const ciphers=this.generators.filter(g=>(g.p||0)<100).map((g,idx)=>({...g,targetType:'cipher',name:`密码机 #${idx+1}`}));
+    const peers=(this.survivors||[]).filter(s=>s!==this.player&&(s.health??2)>0&&!s.escaped&&!s.eliminated).map(s=>({...s,id:s.id||s.nickname,targetType:'teammate',name:s.nickname||'队友'}));
+    const ciphers=this.generators.filter(g=>(g.p||0)<100).map((g,idx)=>({...g,index:idx,targetType:'cipher',name:`密码机 #${idx+1}`}));
     const powered=this.powered===3||this.generators.filter(g=>g.p>=100).length>=5;
-    const gates=powered?this.exits.map((e,idx)=>({...e,targetType:'gate',name:`逃生大门 #${idx+1}`})):[];
+    const gates=powered?this.exits.map((e,idx)=>({...e,index:idx,targetType:'gate',name:`逃生大门 #${idx+1}`})):[];
     return [...peers,...ciphers,...gates];
   }
   updateProgrammerAim(aimAngle){
