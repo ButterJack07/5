@@ -229,7 +229,7 @@ function beginLANMatch(config){
   game.message=`同图联机已开始！[${lanRoomCode}]`;
   $('#stage').focus({preventScroll:true});
 }
-function applyWorld(state){if(!sharedMatch)return;const me=state.actors.find(a=>a.id===myLanId),hunter=state.actors.find(a=>a.role==='hunter');if(!me||!hunter)return;game.role=me.role;game.time=state.time;game.generators=state.generators;game.pallets=state.pallets;game.exits=state.exits;game.exit=game.exits[0];game.hunter={...hunter.position};game.attack=hunter.attack;game.stun=hunter.stun;game.hunterAttackCooldown=hunter.hunterAttackCooldown;game.player={...(me.role==='survivor'?me.position:state.actors.find(a=>a.role==='survivor')?.position||{x:40,y:70}),id:myLanId};game.health=me.health;game.dashCooldown=me.dashCooldown;game.characterId=me.role==='survivor'?me.character:game.characterId;game.hunterId=hunter.character;game.calibration=me.calibration;game.vault=me.vault;game.healing=me.healing;game.healProgress=me.healProgress;game.decoding=game.generators[me.decodeIndex]||null;game.message=me.message;game.status=state.status==='finished'?'lost':'playing';game.survivors=state.actors.filter(a=>a.role==='survivor').map(a=>a.id===myLanId?game.player:{...a.position,id:a.id,nickname:a.nickname,character:a.character,health:a.health,isAi:a.bot});}
+function applyWorld(state){if(!sharedMatch)return;const me=state.actors.find(a=>a.id===myLanId),hunter=state.actors.find(a=>a.role==='hunter');if(!me||!hunter)return;game.role=me.role;game.time=state.time;game.generators=state.generators;game.pallets=state.pallets;game.exits=state.exits;game.exit=game.exits[0];if(state.footprints)game.footprints=state.footprints;game.hunter={...hunter.position};game.attack=hunter.attack;game.stun=hunter.stun;game.hunterAttackCooldown=hunter.hunterAttackCooldown;game.player={...(me.role==='survivor'?me.position:state.actors.find(a=>a.role==='survivor')?.position||{x:40,y:70}),id:myLanId};game.health=me.health;game.dashCooldown=me.dashCooldown;game.characterId=me.role==='survivor'?me.character:game.characterId;game.hunterId=hunter.character;game.calibration=me.calibration;game.vault=me.vault;game.healing=me.healing;game.healProgress=me.healProgress;game.decoding=game.generators[me.decodeIndex]||null;game.message=me.message;game.status=state.status==='finished'?'lost':'playing';game.survivors=state.actors.filter(a=>a.role==='survivor').map(a=>a.id===myLanId?game.player:{...a.position,id:a.id,nickname:a.nickname,character:a.character,health:a.health,isAi:a.bot});}
 
 function updateLanPeer(data){
   if(data.id===myLanId)return;
@@ -441,7 +441,7 @@ function character(color,hunter){
     group.userData.armR=armR;
   }
   return {group,legs,armL,armR};
-}const player=createSurvivorMesh(T,game.characterId),hunter=createHunterMesh(T,game.hunterId);scene.add(player.group);scene.add(hunter.group);player.group.scale.setScalar(0.8);hunter.group.scale.setScalar(0.72);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
+}const player=createSurvivorMesh(T,game.characterId),hunter=createHunterMesh(T,game.hunterId);const footprintGroup=new T.Group();footprintGroup.name='footprintGroup';scene.add(footprintGroup);scene.add(player.group);scene.add(hunter.group);player.group.scale.setScalar(0.8);hunter.group.scale.setScalar(0.72);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate,footprintGroup};resize();}
 function drawThree(dt){
   const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;
   const lerpFactor=Math.min(1,dt*22);
@@ -560,6 +560,27 @@ function drawThree(dt){
     glow.rotation.y=game.hunter.angle||0;
   }
 
+  // Render ground red scratch marks (footprints) for hunter tracking
+  const fps=game.footprints||[];
+  const fg=three.footprintGroup;
+  if(fg){
+    while(fg.children.length<fps.length){
+      const g=new three.T.Group();
+      const m1=new three.T.Mesh(new three.T.BoxGeometry(0.18,0.02,0.65),new three.T.MeshBasicMaterial({color:0xff2b20,transparent:true,opacity:0.8,depthWrite:false}));
+      const m2=new three.T.Mesh(new three.T.BoxGeometry(0.12,0.02,0.42),new three.T.MeshBasicMaterial({color:0xff483b,transparent:true,opacity:0.8,depthWrite:false}));
+      m2.position.set(0.14,0,-0.08);m2.rotation.y=0.3;
+      g.add(m1,m2);fg.add(g);
+    }
+    fg.children.forEach((g,idx)=>{
+      if(idx<fps.length){
+        const f=fps[idx];g.visible=true;
+        g.position.set(f.x,0.05+(f.z||0),f.y);g.rotation.y=f.angle||0;
+        const alpha=Math.max(0,Math.min(0.85,f.time/4.5));
+        g.children.forEach(c=>c.material.opacity=alpha);
+      }else{g.visible=false;}
+    });
+  }
+
   // Refined attack and recovery animations
   const a=game.attack,pivot=three.hunter.group.userData?.wepPivot,armR=three.hunter.group.userData?.armR;
   if(pivot&&armR){
@@ -583,7 +604,35 @@ function drawThree(dt){
   updateCamera();
   renderer.render(scene,camera);
 }
-let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];const myAngle=Math.hypot(x,y)>0.05?Math.atan2(x,y):cameraAngle;input={x,y,angle:myAngle,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0,angle:myAngle}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
+let audioCtx=null,lastHeartbeatTime=0,sneakMode=false;
+function playHeartbeatSound(intensity){
+  try{
+    audioCtx??=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended')audioCtx.resume();
+    const now=audioCtx.currentTime;
+    [0,0.12].forEach((offset,idx)=>{
+      const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+      osc.type='sine';
+      osc.frequency.setValueAtTime(idx===0?56:44,now+offset);
+      osc.frequency.exponentialRampToValueAtTime(28,now+offset+0.1);
+      const vol=Math.min(0.65,0.2+intensity*0.45);
+      gain.gain.setValueAtTime(vol,now+offset);
+      gain.gain.exponentialRampToValueAtTime(0.001,now+offset+0.12);
+      osc.connect(gain);gain.connect(audioCtx.destination);
+      osc.start(now+offset);osc.stop(now+offset+0.14);
+    });
+  }catch(e){}
+}
+const sneakBtn=$('#sneakBtn');
+if(sneakBtn){
+  sneakBtn.onclick=()=>{
+    sneakMode=!sneakMode;
+    sneakBtn.classList.toggle('active',sneakMode);
+    sneakBtn.textContent=sneakMode?'静步中 · 无脚印':'静步 · 慢走';
+  };
+}
+
+let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];const myAngle=Math.hypot(x,y)>0.05?Math.atan2(x,y):cameraAngle;const sneak=!!(keys.shift||keys.c||sneakMode);input={x,y,angle:myAngle,sneak,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0,angle:myAngle,sneak}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
 let lastNetworkInput=0;
 function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);chairState=localMatch.chairSnapshot();const state=localMatch.snapshot();teamActors=state.actors.filter(a=>a.role==='survivor');applyWorld(state);}
 setInterval(tickLocalMatch,50);
@@ -821,6 +870,31 @@ function updateHUD(){
       $('.bottom').hidden=false;
     }
     if(game.role==='hunter'&&rules.tinnitus)$('#threat').textContent='耳鸣 · 附近有求生者';
+  }
+
+  // Heartbeat Terror Radius (32m) with audio & visual pulse
+  const distToHunter=distance(game.player,game.hunter);
+  const vignette=$('#heartbeatVignette'),hbIcon=$('#heartbeatIcon');
+  if(sneakBtn)sneakBtn.hidden=(game.role!=='survivor'||game.status!=='playing');
+  if(game.role==='survivor'&&game.status==='playing'&&distToHunter<=32){
+    const intensity=Math.max(0,Math.min(1,(32-distToHunter)/32));
+    if(vignette)vignette.style.opacity=(intensity*0.85).toFixed(2);
+    if(hbIcon){
+      hbIcon.hidden=false;
+      const bpm=Math.round(65+intensity*115);
+      const intervalSec=60/bpm;
+      const pulseEl=hbIcon.querySelector('.heart-shape');
+      if(pulseEl)pulseEl.style.animationDuration=(intervalSec*0.85).toFixed(2)+'s';
+      const bpmText=$('#heartbeatBpm');
+      if(bpmText)bpmText.textContent=bpm+' BPM · 恐惧逼近';
+      if(time-lastHeartbeatTime>=intervalSec){
+        lastHeartbeatTime=time;
+        playHeartbeatSound(intensity);
+      }
+    }
+  }else{
+    if(vignette)vignette.style.opacity='0';
+    if(hbIcon)hbIcon.hidden=true;
   }
 }
 function updateCamera(){const {T,camera,scene}=three,a=game.controlled;const targetY=game.role==='hunter'?(a.z||0)+1.65:(a.z||0)+1.25;const target=new T.Vector3(a.x,targetY,a.y);const length=game.role==='hunter'?4.8:4.2;const offset=new T.Vector3(Math.sin(cameraAngle)*Math.cos(cameraPitch)*length,Math.sin(cameraPitch)*length,Math.cos(cameraAngle)*Math.cos(cameraPitch)*length);const direction=offset.clone().normalize();const ray=new T.Raycaster(target,direction,.1,length+.3);const blockers=scene.children.filter(m=>m.isMesh&&m.visible&&!['hunterRedLight','skillSmoke'].includes(m.name)&&!three.pallets.includes(m)&&m!==three.gate&&m.material?.opacity>=.9);const hit=ray.intersectObjects(blockers,false)[0];const distance=hit?Math.max(.45,Math.min(length,hit.distance-.3)):length;camera.position.copy(target).addScaledVector(direction,distance);camera.position.y=Math.max((a.z||0)+.3,camera.position.y);camera.lookAt(target);}

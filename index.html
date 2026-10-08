@@ -7,6 +7,8 @@
 <section id="matchResults" hidden><h2 id="resultTitle">对局结束</h2><p id="resultDetails"></p><button id="returnRoom">返回房间 / 选角</button></section>
 <section id="settings" hidden><h2>演练设置</h2><p id="cameraHint">3D 近距跟随 · 拖动画面左右、上下调整镜头</p><button id="restart">重新开始</button><button id="fullscreen">浏览器全屏</button><button id="closeSettings">返回游戏</button><small>WASD 移动 · E 交互 · Q 角色技能<br>医生按 Q 自愈 · 点击密码机旁按钮破译<br>上下视角范围：向上 17° / 向下 46°</small></section>
 <button id="editLayout" hidden>调整手机布局</button><div id="layoutToolbar" hidden><span id="layoutSelected">点选并拖动控件</span><label>大小 <input id="layoutSize" type="range" min="60" max="160" value="100" aria-label="控件大小"><b id="layoutSizeValue">100%</b></label><button id="resetLayout">恢复默认</button><button id="saveLayout">保存布局</button></div>
+<div id="heartbeatVignette"></div>
+<div id="heartbeatIcon" hidden><span class="heart-shape">💜</span><b id="heartbeatBpm">心跳</b></div>
 <div id="message" role="status"></div>
 <div id="terrorShock" hidden role="status">恐惧震慑</div>
 <section class="survivor" id="survivorHud"><div class="portrait">◇</div><div><h3><b id="characterName">林间信使</b> <span id="health">健康</span></h3><label>状态 <b id="energy">普通移动</b></label><div class="track" hidden><i id="energybar"></i></div></div></section>
@@ -17,6 +19,7 @@
 <div class="bottom"><span id="prompt">靠近设备，按住 E 交互</span><span id="mode" hidden>2.5D / 等距跟随</span></div>
 <div class="skill"><button id="dash" aria-label="疾步突进，冷却五秒"><span id="dashIcon">➜</span><small id="dashTime">Q · 疾步</small></button></div>
 <button id="hunterSkill" hidden>F · 技能</button>
+<button id="sneakBtn">静步 · 慢走</button>
 <button id="mapAction" hidden>场景交互</button>
 <div id="overlay"><p class="eyebrow">雾港</p><h2>圣雾礼拜堂</h2><small class="updateTime">版本更新时间：2026-10-08 10:45</small><p>选择角色，开始演练或加入共享对局。</p>
 <nav id="modeSelect"><button data-mode="single" class="selected">单人模式</button><button data-mode="ai">AI 模式</button><button data-mode="online">联机模式</button></nav>

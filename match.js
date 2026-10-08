@@ -14,15 +14,27 @@ export class SharedMatch{
     const members=[...roster];if(!members.some(p=>p.role==='hunter'))members.push({id:'bot-hunter',nickname:'人机监管者',role:'hunter',character:'ripper',bot:true});
     if(fillBots)while(members.filter(p=>p.role==='survivor').length<4)members.push({id:'bot-'+members.length,nickname:'人机求生者 '+members.length,role:'survivor',character:'mercenary',bot:true});
     let index=0;this.actors=members.map(p=>{const sim=new Game();sim.characterId=p.role==='survivor'?p.character:'mercenary';sim.hunterId=p.role==='hunter'?p.character:'ripper';sim.start();const pos=p.role==='hunter'?{x:48,y:65}: {x:40+index++*4,y:70};Object.assign(p.role==='hunter'?sim.hunter:sim.player,pos);sim.generators=this.world.generators;sim.pallets=this.world.pallets;sim.exits=this.world.exits;sim.exit=this.world.exit;return {...p,sim,input:{x:0,y:0},seen:0};});
-    this.tick=0;this.hunterBrain=new HunterBrain();this.chairSystem=new ChairSystem();this.hunterSkills=new HunterSkills();this.rules=new StandardRules();this.interactions=new MapInteractions();this.previousProgress=this.world.generators.map(g=>g.p);
+    this.tick=0;this.hunterBrain=new HunterBrain();this.chairSystem=new ChairSystem();this.hunterSkills=new HunterSkills();this.rules=new StandardRules();this.interactions=new MapInteractions();this.previousProgress=this.world.generators.map(g=>g.p);this.footprints=[];
   }
-  input(id,input){const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a)return;a.input={x:Math.max(-1,Math.min(1,Number(input.x)||0)),y:Math.max(-1,Math.min(1,Number(input.y)||0)),angle:Number.isFinite(input.angle)?Number(input.angle):undefined,interact:!!input.interact,dash:!!input.dash,skill:!!input.skill};a.seen=this.tick;}
+  input(id,input){const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a)return;a.input={x:Math.max(-1,Math.min(1,Number(input.x)||0)),y:Math.max(-1,Math.min(1,Number(input.y)||0)),angle:Number.isFinite(input.angle)?Number(input.angle):undefined,interact:!!input.interact,dash:!!input.dash,skill:!!input.skill,sneak:!!input.sneak};a.seen=this.tick;}
   action(id,action,index){if(['locker','hunter_vault'].includes(action)){this.interactions.action(this,id,action,index);return;}const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a||a.role!=='survivor'||a.hidden!=null||!['healthy','injured'].includes(actorState(a,this.chairSystem)))return;if(action==='decode')a.sim.startDecode(this.world.generators[index]);if(action==='calibrate')a.sim.calibrate();}
   chairSnapshot(){return {scores:collectScores(this),interactions:this.interactions.snapshot(),rules:this.rules.snapshot(this),hunterSkills:this.hunterSkills.snapshot(),result:this.result,chairs:this.chairSystem.chairs,carried:this.chairSystem.carried,rescues:[...this.chairSystem.rescues].map(([id,r])=>({id,...r})),actors:this.actors.map(a=>({id:a.id,hidden:a.hidden,state:actorState(a,this.chairSystem),seated:a.seated,eliminated:!!a.eliminated,nextChair:a.nextChair||0}))};}
-  update(dt=.05){if(this.status!=='playing')return;this.tick++;this.time-=dt;this.rules.update(this,dt);this.interactions.update(this,dt);const hunter=this.actors.find(a=>a.role==='hunter'),survivors=this.actors.filter(a=>a.role==='survivor');
+  update(dt=.05){if(this.status!=='playing')return;this.tick++;this.time-=dt;    this.rules.update(this,dt);this.interactions.update(this,dt);const hunter=this.actors.find(a=>a.role==='hunter'),survivors=this.actors.filter(a=>a.role==='survivor');
+    for(let i=this.footprints.length-1;i>=0;i--){
+      this.footprints[i].time-=dt;
+      if(this.footprints[i].time<=0)this.footprints.splice(i,1);
+    }
     for(const a of survivors){const g=a.sim;if(a.eliminated||a.escaped||a.seated!=null||this.chairSystem.carried===a.id)continue;if(g.health<=0){if(a.bot)a.input={x:0,y:0,interact:true};if(this.tick-a.seen<=10&&!a.bot)g.move(g.player,(a.input.x||0)*2*dt,(a.input.y||0)*2*dt);continue;}Object.assign(g.hunter,hunter.sim.hunter);g.aiHunterDisabled=true;g.stun=999;g.attack=null;g.status='playing';let input=a.input;if(a.bot){a.brain??=new SurvivorBrain();input=a.brain.update(this,a,dt);a.input=input;}else if(this.tick-a.seen>10)input={x:0,y:0};
       const before=this.world.pallets.map(p=>p.down);g.updateSimulation(dt,input);if(before.some((v,i)=>!v&&this.world.pallets[i].down)&&distance(g.player,hunter.sim.hunter)<4)hunter.sim.stun=3;
       if(!a.bot&&a.input.angle!==undefined&&!g.vault&&Math.hypot(a.input.x||0,a.input.y||0)<0.05)g.player.angle=a.input.angle;
+      if(!a.input.sneak&&!g.vault&&Math.hypot(a.input.x||0,a.input.y||0)>0.1){
+        a._lastStep??={x:g.player.x,y:g.player.y};
+        if(distance(g.player,a._lastStep)>=1.6){
+          this.footprints.push({x:g.player.x,y:g.player.y,z:g.player.z||0,angle:g.player.angle,time:4.5});
+          if(this.footprints.length>80)this.footprints.shift();
+          a._lastStep={x:g.player.x,y:g.player.y};
+        }
+      }
       g.player.health=g.health;if(g.status==='won')a.escaped=true;
     }
     const h=hunter.sim;h.stun=Math.max(0,h.stun-dt);h.hunterAttackCooldown=Math.max(0,h.hunterAttackCooldown-dt);const targets=survivors.filter(a=>a.sim.health>0&&!a.escaped).sort((a,b)=>distance(a.sim.player,h.hunter)-distance(b.sim.player,h.hunter));let input=hunter.input;if(hunter.bot)input=this.hunterBrain.update(h,targets,dt);else if(this.tick-hunter.seen>10)input={x:0,y:0};
@@ -37,5 +49,5 @@ export class SharedMatch{
     for(const a of survivors){const g=a.sim.decoding,index=this.world.generators.indexOf(g);if(index>=0){const workers=survivors.filter(p=>p.sim.decoding===g).length;a.decodeContribution=(a.decodeContribution||0)+Math.max(0,g.p-this.previousProgress[index])/Math.max(1,workers);}}this.previousProgress=this.world.generators.map(g=>g.p);
     this.chairSystem.update(this,dt);h.updateFalls(dt);if(survivors.every(a=>a.escaped||a.eliminated)){this.status='finished';const escaped=survivors.filter(a=>a.escaped).length;this.result={escaped,eliminated:survivors.length-escaped,total:survivors.length,winner:escaped>survivors.length/2?'survivors':escaped===survivors.length/2?'draw':'hunter'};}
   }
-  snapshot(){return {tick:this.tick,time:this.time,status:this.status,generators:this.world.generators,pallets:this.world.pallets,exits:this.world.exits,actors:this.actors.map(a=>{const g=a.sim;return {id:a.id,nickname:a.nickname,role:a.role,character:a.character,bot:!!a.bot,position:a.role==='hunter'?g.hunter:g.player,health:g.health,escaped:!!a.escaped,attack:a.role==='hunter'?g.attack:null,stun:g.stun,dashCooldown:g.dashCooldown,hunterAttackCooldown:g.hunterAttackCooldown,vault:g.vault,calibration:g.calibration,decodeIndex:this.world.generators.indexOf(g.decoding),shield:g.shield,healing:g.healing,healProgress:g.healProgress,message:g.message};})};}
+  snapshot(){return {tick:this.tick,time:this.time,status:this.status,generators:this.world.generators,pallets:this.world.pallets,exits:this.world.exits,footprints:this.footprints.map(f=>({x:f.x,y:f.y,z:f.z,time:f.time})),actors:this.actors.map(a=>{const g=a.sim;return {id:a.id,nickname:a.nickname,role:a.role,character:a.character,bot:!!a.bot,position:a.role==='hunter'?g.hunter:g.player,health:g.health,escaped:!!a.escaped,attack:a.role==='hunter'?g.attack:null,stun:g.stun,dashCooldown:g.dashCooldown,hunterAttackCooldown:g.hunterAttackCooldown,vault:g.vault,calibration:g.calibration,decodeIndex:this.world.generators.indexOf(g.decoding),shield:g.shield,healing:g.healing,healProgress:g.healProgress,message:g.message};})};}
 }
