@@ -4,6 +4,7 @@ export const SIZE=map.SIZE;
 export const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 export function palletPose(p){const progress=p.down?1-(p.drop||0)/.4:0,angle=.18+Math.max(0,progress)*(Math.PI/2-.18);return {baseX:p.x-2,angle,length:4,tipX:p.x-2+4*Math.sin(angle),tipZ:4*Math.cos(angle)};}
 export const characters=[
+  {id:'programmer',name:'程序员',skill:'超频/报错/跃迁',cooldown:5,description:'测试特权角色：①无CD随时开关双倍移速(持续10秒) ②无CD大范围眩晕监管 ③长按视角瞄准传送至队友/未完工电机/通电大门。',color:0x2d8cf0},
   {id:'mercenary',name:'佣兵',skill:'钢铁冲刺',cooldown:5,description:'向面朝方向利用肘部护腕高速弹射冲刺 0.9 秒，碰到障碍即停，强行拉开身位。',color:0x4f6d53},
   {id:'doctor',name:'医生',skill:'自愈针剂',cooldown:5,description:'受伤时使用技能，原地快速注射包扎 3 秒恢复健康。移动或受击中断。',color:0xe1ddd2},
   {id:'seer',name:'先知',skill:'役鸟守护',cooldown:5,description:'驱使役鸟在自身周围盘旋 2.5 秒，抵挡一次监管者攻击。',color:0x3c5166},
@@ -191,8 +192,61 @@ export class Game{
     const hPos=hunterSpawns[Math.floor(Math.random()*hunterSpawns.length)];
     this.player={...sPos,angle:0};
     this.hunter={...hPos,angle:0};
-    this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;this.sneak=false;}
+    this.generators=[];this.pallets=[];this.windows=[];this.exit={x:136,y:50,p:0};this.health=2;this.healProgress=0;this.dashCooldown=0;this.dashFlash=0;this.dashRemaining=0;this.dashDirection=null;this.shield=0;this.smoke=null;this.vault=null;this.vaultBoost=0;this.time=300;this.status='ready';this.invincible=0;this.stun=0;this.elapsed=0;this.message='选择角色，开始演练';this.alert=0;this.path=[];this.pathTimer=0;this.memory=0;this.interacting=false;this.chasing=false;this.lastDash=false;this.lastInteract=false;this.vaultCooldown=0;    this.hunterAttackCooldown=0;this.decoding=null;this.calibration=null;this.nextCalibration=0;this.sneak=false;this.progSpeed=false;this.progSpeedTimer=0;this.progAiming=false;this.progTarget=null;}
   get heartbeat(){const d=distance(this.player,this.hunter);return d>=32?0:Math.min(1,Math.max(0,(32-d)/32));}
+  triggerProgrammerSpeed(){
+    if(this.characterId!=='programmer'||this.status!=='playing')return false;
+    if(this.progSpeed){
+      this.progSpeed=false;this.progSpeedTimer=0;this.message='超频模式已关闭';
+    }else{
+      this.progSpeed=true;this.progSpeedTimer=10;this.message='超频启动！双倍极速已激活 (10秒，随时可停止)';
+    }
+    return true;
+  }
+  triggerProgrammerStun(){
+    if(this.characterId!=='programmer'||this.status!=='playing')return false;
+    const d=distance(this.player,this.hunter);
+    if(d<30){
+      this.stun=4;this.alert=5;this.message=`404 Bug 报错！追猎者在 ${Math.round(d)} 米处被全域眩晕 4 秒`;
+    }else{
+      this.message='追猎者距离过远 (超过 30 米)，报错未命中';
+    }
+    return true;
+  }
+  getTeleportCandidates(){
+    const peers=(this.survivors||[]).filter(s=>s!==this.player&&(s.health??2)>0&&!s.escaped&&!s.eliminated).map(s=>({...s,targetType:'teammate',name:s.nickname||'队友'}));
+    const ciphers=this.generators.filter(g=>(g.p||0)<100).map((g,idx)=>({...g,targetType:'cipher',name:`密码机 #${idx+1}`}));
+    const powered=this.powered===3||this.generators.filter(g=>g.p>=100).length>=5;
+    const gates=powered?this.exits.map((e,idx)=>({...e,targetType:'gate',name:`逃生大门 #${idx+1}`})):[];
+    return [...peers,...ciphers,...gates];
+  }
+  updateProgrammerAim(aimAngle){
+    if(this.characterId!=='programmer')return null;
+    const candidates=this.getTeleportCandidates();
+    if(!candidates.length){this.progTarget=null;return null;}
+    let best=null,minScore=Infinity;
+    for(const c of candidates){
+      const dx=c.x-this.player.x,dy=c.y-this.player.y;
+      const ang=Math.atan2(dx,dy);
+      let diff=Math.abs(ang-aimAngle);
+      while(diff>Math.PI)diff=Math.abs(diff-Math.PI*2);
+      const score=diff+Math.hypot(dx,dy)*0.003;
+      if(score<minScore){minScore=score;best=c;}
+    }
+    this.progTarget=best||candidates[0];
+    return this.progTarget;
+  }
+  triggerProgrammerTeleport(target=null){
+    if(this.characterId!=='programmer'||this.status!=='playing')return false;
+    const dest=target||this.progTarget;
+    if(!dest){this.message='暂无可传送的目标';return false;}
+    this.stopDecode();
+    this.player.x=dest.x;this.player.y=dest.y;this.player.z=dest.z||0;
+    this.resolveCollision(this.player);
+    this.message=`代码跃迁！已传送到 ${dest.name||'指定目标'} 身边`;
+    this.progAiming=false;this.progTarget=null;
+    return true;
+  }
   start(){if(this.status==='ready'){this.configureMap();this.palletVaultLock=0;this.palletReleaseRequired=false;this.healing=false;this.healProgress=0;this.time=300;this.attack=null;this.status='playing';this.message='破译三台密码机，开启任意逃生门';}}
   get powered(){const n=this.generators.filter(g=>g.p>=100).length;return this.generators.length>=7?Math.min(3,n*3/5):n;}
   startDecode(g){if(this.status!=='playing'||this.vault||this.dashRemaining>0||!this.generators.includes(g)||g.p>=100||distance(this.player,g)>=6)return false;if(this.decoding===g){this.stopDecode();return true;}this.decoding=g;this.calibration=null;this.nextCalibration=3+Math.random()*2;this.message='正在破译 · 移动可退出';return true;}
@@ -270,6 +324,10 @@ export class Game{
     this.stopDecode();
     const len=Math.hypot(x,y);
     if(len>.1)this.player.angle=Math.atan2(x,y);
+
+    if(this.characterId==='programmer'){
+      return this.triggerProgrammerSpeed();
+    }
 
     if(this.characterId==='perfumer'){
       if(this.perfumeState){
@@ -382,7 +440,12 @@ export class Game{
     else if(this.dashRemaining>0){const step=Math.min(dt,this.dashRemaining),d=this.dashDirection,n=Math.ceil(step*26/.2);for(let i=0;i<n;i++){const nx=this.player.x+d.x*step*26/n,ny=this.player.y+d.y*step*26/n;if(this.blocked(nx,ny)){this.dashRemaining=0;break;}this.player.x=nx;this.player.y=ny;}this.dashRemaining=Math.max(0,this.dashRemaining-step);if(this.dashRemaining<.00001)this.dashRemaining=0;}
     else if(!dropping){
       if(this.decoding&&len>.1)this.stopDecode();
-      const speed=(this.invincible>0?12:this.health===1?5.4:6.5)*(this.vaultBoost>0?1.3:1)*(this.sneak?0.55:1);
+      if(this.progSpeed){
+        this.progSpeedTimer=Math.max(0,this.progSpeedTimer-dt);
+        if(this.progSpeedTimer<=0){this.progSpeed=false;this.message='超频 10 秒结束，恢复常规移速';}
+      }
+      const progMult=(this.characterId==='programmer'&&this.progSpeed)?2.0:1.0;
+      const speed=(this.invincible>0?12:this.health===1?5.4:6.5)*(this.vaultBoost>0?1.3:1)*(this.sneak?0.55:1)*progMult;
       this.move(this.player,x*speed*dt,y*speed*dt);
     }
     this.updateDecode(dt);const near=this.nearby,interaction=!!input.interact;this.interacting=false;if(!locked&&interaction&&near&&distance(near,this.player)<6){this.interacting=true;if(near.type==='pallet'&&!this.lastInteract&&distance(near,this.player)<3.5){near.ref.down=true;near.ref.drop=.4;this.message='放下木板';if(distance(near,this.hunter)<4){this.stun=3;this.message='木板命中！';}this.pathTimer=0;}else if((near.type==='window'||near.type==='palletVault')&&!this.lastInteract)this.beginVault(near);else if(len<.1&&near.type==='heal'){this.healProgress=Math.min(100,this.healProgress+dt*12.5);if(this.healProgress>=100){this.health=2;this.healProgress=0;this.message='包扎完成';}}else if(near.type==='generator'&&!this.lastInteract)this.startDecode(near.ref);else if(len<.1&&near.type==='exit'){near.ref.p=Math.min(100,near.ref.p+dt*25);if(near.ref.p===100)this.message='闸门已开启';}}this.lastInteract=interaction;

@@ -308,6 +308,26 @@ $('#calibrateButton').onpointerdown=e=>{e.preventDefault();game.calibrate();};
 $('#calibrateButton').onclick=e=>{if(e.detail===0)game.calibrate();};
 for(const id of ['interact','dash']){let el=$('#'+id);el.onpointerdown=e=>{if(layoutEditing()||id==='interact'&&game.palletVaultLock>0)return;e.preventDefault();el.setPointerCapture(e.pointerId);held[id]=true;tapped[id]=true;};el.onpointerup=el.onpointercancel=()=>held[id]=false;}
 let hunterSkillHeld=false;$('#hunterSkill').onpointerdown=e=>{e.preventDefault();e.target.setPointerCapture(e.pointerId);hunterSkillHeld=true;};$('#hunterSkill').onpointerup=$('#hunterSkill').onpointercancel=()=>hunterSkillHeld=false;
+
+let progTeleportHeld=false, progSpeedTapped=false, progStunTapped=false;
+const progSpeedBtn=$('#progSpeedBtn'), progStunBtn=$('#progStunBtn'), progTeleportBtn=$('#progTeleportBtn');
+if(progSpeedBtn){
+  progSpeedBtn.onclick=()=>{progSpeedTapped=true;};
+}
+if(progStunBtn){
+  progStunBtn.onclick=()=>{progStunTapped=true;};
+}
+if(progTeleportBtn){
+  progTeleportBtn.onpointerdown=e=>{e.preventDefault();e.target.setPointerCapture(e.pointerId);progTeleportHeld=true;};
+  progTeleportBtn.onpointerup=progTeleportBtn.onpointercancel=()=>{progTeleportHeld=false;};
+}
+window.addEventListener('keydown',e=>{
+  if(e.target?.matches?.('input,textarea,select')||game.status!=='playing')return;
+  const k=inputKey(e);
+  if(game.characterId==='programmer'){
+    if((k==='1'||k==='z')&&!e.repeat){e.preventDefault();progStunTapped=true;}
+  }
+});
 function characterMenu(){
   const root=$('#characterSelect');
   root.replaceChildren();
@@ -616,6 +636,26 @@ function drawThree(dt){
     }
   }
 
+  // 3D Teleport Beacon for Programmer aim
+  let tpBeacon=three.scene.getObjectByName('tpBeacon');
+  if(!tpBeacon){
+    tpBeacon=new three.T.Group();
+    tpBeacon.name='tpBeacon';
+    const ring=new three.T.Mesh(new three.T.RingGeometry(1.2,1.6,24),new three.T.MeshBasicMaterial({color:0x38bdf8,side:three.T.DoubleSide,transparent:true,opacity:0.85}));
+    ring.rotation.x=-Math.PI/2;
+    const beam=new three.T.Mesh(new three.T.CylinderGeometry(0.8,1.4,8,16),new three.T.MeshBasicMaterial({color:0x0284c7,transparent:true,opacity:0.35}));
+    beam.position.y=4;
+    tpBeacon.add(ring,beam);
+    three.scene.add(tpBeacon);
+  }
+  if(game.progAiming&&game.progTarget){
+    tpBeacon.visible=true;
+    tpBeacon.position.set(game.progTarget.x,0.1+(game.progTarget.z||0),game.progTarget.y);
+    tpBeacon.rotation.y=time*3;
+  }else{
+    tpBeacon.visible=false;
+  }
+
   // Single authoritative camera update and single render pass per frame
   updateCamera();
   renderer.render(scene,camera);
@@ -673,7 +713,32 @@ function frame(t){
   [x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];
   const myAngle=Math.hypot(x,y)>0.05?Math.atan2(x,y):cameraAngle;
   const sneak=!!(keys.shift||keys.c||sneakMode);
-  input={x,y,angle:myAngle,sneak,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};
+  const isProg=game.role==='survivor'&&game.characterId==='programmer';
+  const aiming=isProg&&(progTeleportHeld||keys['2']||keys['x']);
+  let sendTeleportTarget=null,sendSpeedToggle=false,sendStun=false;
+
+  if(isProg){
+    if(aiming){
+      game.progAiming=true;
+      game.updateProgrammerAim(cameraAngle);
+    }else if(game.progAiming){
+      sendTeleportTarget=game.progTarget;
+      if(!sharedMatch)game.triggerProgrammerTeleport(sendTeleportTarget);
+      game.progAiming=false;
+    }
+    if(progSpeedTapped){
+      sendSpeedToggle=true;
+      if(!sharedMatch)game.triggerProgrammerSpeed();
+      progSpeedTapped=false;
+    }
+    if(progStunTapped){
+      sendStun=true;
+      if(!sharedMatch)game.triggerProgrammerStun();
+      progStunTapped=false;
+    }
+  }
+
+  input={x,y,angle:myAngle,sneak,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash,progSpeedToggle:sendSpeedToggle,progStun:sendStun,progTeleport:sendTeleportTarget};
   const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));
   if(localMatch){
     tickLocalMatch(dt);
@@ -901,6 +966,32 @@ function updateHUD(){
   if(game.calibration)$('#calibrationNeedle').style.left=(game.calibration.elapsed/game.calibration.duration*100)+'%';
   const touch=matchMedia('(pointer:coarse)').matches,key=touch?'按住交互':'按住 E';
   $('#prompt').textContent=game.calibration?'点击校准或按空格':decode?'破译中 · 移动中断':close?near.type==='pallet'?(touch?'点击交互放下木板':'[ E ] 放下木板'):near.type==='window'?(touch?'点击交互翻越窗口':'[ E ] 翻越窗口'):near.type==='heal'?key+' 包扎 · 保持静止':near.type==='exit'?key+' 开门 · 保持静止':'点击密码机旁按钮破译':game.exit.p>=100?'穿过东侧出口':game.powered===3?'前往东侧闸门':'';
+  const isProgRole=game.role==='survivor'&&game.characterId==='programmer'&&game.status==='playing';
+  const progPanel=$('#programmerPanel');
+  if(progPanel){
+    progPanel.hidden=!isProgRole;
+    if(isProgRole){
+      const speedBtn=$('#progSpeedBtn');
+      if(speedBtn){
+        speedBtn.classList.toggle('active',!!game.progSpeed);
+        speedBtn.textContent=game.progSpeed?`⚡ 超频中 ${game.progSpeedTimer.toFixed(1)}s [Q关闭]`:'⚡ 超频极速 [Q开启]';
+      }
+      const stunBtn=$('#progStunBtn');
+      if(stunBtn){
+        const d=Math.round(distance(game.player,game.hunter));
+        stunBtn.textContent=d<30?`🛑 报错眩晕 [1/Z] (${d}m)`:`🛑 报错眩晕 [1/Z] (超出${d}m)`;
+      }
+      const tpBtn=$('#progTeleportBtn');
+      if(tpBtn)tpBtn.classList.toggle('active',!!game.progAiming);
+    }
+  }
+  const reticle=$('#teleportReticle');
+  if(reticle){
+    reticle.hidden=!isProgRole||!game.progAiming;
+    if(!reticle.hidden){
+      $('#teleportTargetText').textContent=game.progTarget?`🎯 目标锁定：${game.progTarget.name} (松开跃迁)`:'🔍 旋转视角搜索传送目标...';
+    }
+  }
   $('#dash').disabled=game.status!=='playing'||game.dashCooldown>0;
   $('#dash').classList.toggle('ready',game.dashCooldown<=0);
   $('#dashTime').textContent=game.dashCooldown>0?game.dashCooldown.toFixed(1)+'s':'Q · '+game.character.skill;

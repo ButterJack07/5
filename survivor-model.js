@@ -147,10 +147,14 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     const leatherMat = new T.MeshStandardMaterial({ color: 0x4a2e1d, roughness: 0.7 });
 
     let dressColor = 0xf8fbff;
-    let accentColor = 0x244b6e;
+    let accentColor = 0x22496a;
     let hairColor = 0x42281a;
 
-    if (charId === 'doctor') {
+    if (charId === 'programmer') {
+      dressColor = 0x274d75;  // 程序员经典深蓝工装外套
+      accentColor = 0x6295c7; // 浅蓝衬衫与工卡挂绳
+      hairColor = 0x212226;   // 经典黑发
+    } else if (charId === 'doctor') {
       dressColor = 0xf8fbff;  // 纯白护士裙
       accentColor = 0x22496a; // 海军蓝领结与包边
       hairColor = 0x462b1b;   // 焦糖栗棕色
@@ -257,7 +261,44 @@ export function createSurvivorMesh(T, initialId = 'mercenary') {
     const headG = buildNendoroidHead(group, skinMat, hairMat, charId);
 
     // 5. Special Styling & Accessories for 5 Core Characters (5 个特色角色的专属手办细节)
-    if (charId === 'doctor') {
+    if (charId === 'programmer') {
+      // ===== 程序员 (Programmer) 专属手办造型 =====
+      // 蓬松微卷黑发 + 头顶翘起的天线呆毛
+      const hairBase = sphere(0.49, 14, hairMat, headG, 0, 0.08, -0.05);
+      hairBase.scale.set(1.1, 1.05, 1.06);
+      sphere(0.18, 8, hairMat, headG, -0.16, 0.32, 0.38).rotation.z = -0.25;
+      sphere(0.18, 8, hairMat, headG, 0.16, 0.32, 0.38).rotation.z = 0.25;
+      sphere(0.14, 8, hairMat, headG, 0, 0.35, 0.42);
+      // 头顶呆毛
+      const ahoge = cyl(0.02, 0.04, 0.22, 8, hairMat, headG, 0.04, 0.54, 0.1);
+      ahoge.rotation.z = 0.45;
+
+      // 标志性黑框大圆眼镜 (Cute Round Spectacles)
+      const glassMat = new T.MeshStandardMaterial({ color: 0x18181a, roughness: 0.3 });
+      const lensMat = new T.MeshStandardMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.35, roughness: 0.1 });
+      for (const side of [-1, 1]) {
+        const ring = cyl(0.11, 0.11, 0.02, 14, glassMat, headG, side * 0.19, 0.02, 0.46);
+        ring.rotation.x = Math.PI / 2;
+        const lens = cyl(0.09, 0.09, 0.015, 12, lensMat, headG, side * 0.19, 0.02, 0.46);
+        lens.rotation.x = Math.PI / 2;
+      }
+      cube(0.08, 0.02, 0.02, glassMat, headG, 0, 0.02, 0.47); // 鼻梁架桥
+
+      // 随身配件：发光迷你笔记本电脑 (Glowing Terminal Laptop)
+      const lapG = new T.Group();
+      lapG.position.set(-0.35, -0.12, 0.14);
+      lapG.rotation.set(0.2, 0.35, -0.1);
+      torso.add(lapG);
+      // 笔记本键盘底座
+      cube(0.24, 0.025, 0.18, new T.MeshStandardMaterial({ color: 0x252a30, roughness: 0.4 }), lapG, 0, 0, 0);
+      // 屏幕外壳
+      const screenCase = cube(0.24, 0.18, 0.02, new T.MeshStandardMaterial({ color: 0x1f2328, roughness: 0.4 }), lapG, 0, 0.09, -0.09);
+      screenCase.rotation.x = -0.25;
+      // 绿色荧光代码屏
+      const screenGlow = cube(0.21, 0.15, 0.01, new T.MeshStandardMaterial({ color: 0x38e58f, emissive: 0x1fd677, emissiveIntensity: 1.2 }), lapG, 0, 0.09, -0.078);
+      screenGlow.rotation.x = -0.25;
+
+    } else if (charId === 'doctor') {
       // ===== 1. 医生 (Emily) =====
       // 焦糖深棕蓬松波波短发 + 柔顺内扣两鬓
       const hairBase = sphere(0.49, 14, hairMat, headG, 0, 0.08, -0.05);

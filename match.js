@@ -78,7 +78,7 @@ export class SharedMatch{
     });
     this.tick=0;this.hunterBrain=new HunterBrain();this.chairSystem=new ChairSystem();this.hunterSkills=new HunterSkills();this.rules=new StandardRules();this.interactions=new MapInteractions();this.previousProgress=this.world.generators.map(g=>g.p);this.prepTime=prepTime;
   }
-  input(id,input){const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a)return;a.input={x:Math.max(-1,Math.min(1,Number(input.x)||0)),y:Math.max(-1,Math.min(1,Number(input.y)||0)),angle:Number.isFinite(input.angle)?Number(input.angle):undefined,interact:!!input.interact,dash:!!input.dash,skill:!!input.skill,sneak:!!input.sneak};a.seen=this.tick;}
+  input(id,input){const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a)return;a.input={x:Math.max(-1,Math.min(1,Number(input.x)||0)),y:Math.max(-1,Math.min(1,Number(input.y)||0)),angle:Number.isFinite(input.angle)?Number(input.angle):undefined,interact:!!input.interact,dash:!!input.dash,skill:!!input.skill,sneak:!!input.sneak,progSpeedToggle:!!input.progSpeedToggle,progStun:!!input.progStun,progTeleport:input.progTeleport||null};a.seen=this.tick;}
   action(id,action,index){if(['locker','hunter_vault'].includes(action)){this.interactions.action(this,id,action,index);return;}const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a||a.role!=='survivor'||a.hidden!=null||!['healthy','injured'].includes(actorState(a,this.chairSystem)))return;if(action==='decode')a.sim.startDecode(this.world.generators[index]);if(action==='calibrate')a.sim.calibrate();}
   chairSnapshot(){return {scores:collectScores(this),interactions:this.interactions.snapshot(),rules:this.rules.snapshot(this),hunterSkills:this.hunterSkills.snapshot(),result:this.result,chairs:this.chairSystem.chairs,carried:this.chairSystem.carried,rescues:[...this.chairSystem.rescues].map(([id,r])=>({id,...r})),actors:this.actors.map(a=>({id:a.id,hidden:a.hidden,state:actorState(a,this.chairSystem),seated:a.seated,eliminated:!!a.eliminated,nextChair:a.nextChair||0}))};}
   update(dt=.05){if(this.status!=='playing')return;this.tick++;this.time-=dt;if(this.prepTime>0)this.prepTime=Math.max(0,this.prepTime-dt);this.rules.update(this,dt);this.interactions.update(this,dt);const hunter=this.actors.find(a=>a.role==='hunter'),survivors=this.actors.filter(a=>a.role==='survivor');
@@ -98,6 +98,14 @@ export class SharedMatch{
       if(decGen&&wCount>1&&decGen.p>prevP){
         const delta=decGen.p-prevP;
         decGen.p=Math.min(100,prevP+delta/wCount);
+      }
+      if(a.character==='programmer'){
+        if(input.progSpeedToggle){g.triggerProgrammerSpeed();input.progSpeedToggle=false;}
+        if(input.progStun){
+          if(distance(g.player,hunter.sim.hunter)<30){hunter.sim.stun=4;g.message='404 Bug 报错！追猎者被全域眩晕 4 秒';}
+          input.progStun=false;
+        }
+        if(input.progTeleport){g.triggerProgrammerTeleport(input.progTeleport);input.progTeleport=null;}
       }
       if(before.some((v,i)=>!v&&this.world.pallets[i].down)&&distance(g.player,hunter.sim.hunter)<4)hunter.sim.stun=3;
       if(!a.bot&&a.input.angle!==undefined&&!g.vault&&Math.hypot(a.input.x||0,a.input.y||0)<0.05)g.player.angle=a.input.angle;
