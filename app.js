@@ -442,63 +442,147 @@ function character(color,hunter){
   }
   return {group,legs,armL,armR};
 }const player=createSurvivorMesh(T,game.characterId),hunter=createHunterMesh(T,game.hunterId);scene.add(player.group);scene.add(hunter.group);player.group.scale.setScalar(0.8);hunter.group.scale.setScalar(0.72);$('#webgl').appendChild(renderer.domElement);three={T,renderer,scene,camera,player,hunter,generators,pallets,gate};resize();}
-function drawThree(dt){const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;visual.group.position.set(actor.x,lift,actor.y);visual.group.rotation.y=actor.angle;visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);if(visual===player&&player.animatePose){const myChair=chairState?.actors?.find(a=>a.id===myLanId);const seated=myChair?.seated!=null;const carried=chairState?.carried===myLanId;player.animatePose({health:game.health,moving,time,vault:v,sprint:game.dashRemaining>0,seated,carried});}else{visual.legs.forEach((l,i)=>{l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;});}}    // Render all other survivors in the same map (human peers and AI bots)
-    if(game.survivors){
-      for(const s of game.survivors){
-        if(s===game.player)continue;
-        let sMesh=survivorMeshes.get(s.id||s.nickname);
-        if(!sMesh&&three){
-          const pObj=createSurvivorMesh(three.T,s.character||'mercenary');
-          pObj.group.visible=true;
-          pObj.group.scale.setScalar(0.8);
-          three.scene.add(pObj.group);
-          const cv=document.createElement('canvas');cv.width=256;cv.height=64;
-          const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
-          cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle=s.isAi?'#adb5a8':'#d6ed91';
-          cx.fillText(s.nickname||'求生者',128,42);
-          const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
-          sp.scale.set(3,.75,1);sp.position.set(0,3.2,0);
-          pObj.group.add(sp);
-          sMesh={group:pObj.group,legs:pObj.legs,survivorObj:pObj,character:s.character||'mercenary'};
-          survivorMeshes.set(s.id||s.nickname,sMesh);
+function drawThree(dt){
+  const {T,renderer,scene,camera,player,hunter,generators,pallets,gate}=three;
+  const lerpFactor=Math.min(1,dt*22);
+
+  // Smooth position lerping for main player & hunter
+  for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){
+    const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;
+    const targetX=actor.x,targetZ=actor.y,targetY=(actor.z||0)+lift;
+    if(visual.group.position.lengthSq()===0||Math.hypot(visual.group.position.x-targetX,visual.group.position.z-targetZ)>4){
+      visual.group.position.set(targetX,targetY,targetZ);
+    }else{
+      visual.group.position.x+=(targetX-visual.group.position.x)*lerpFactor;
+      visual.group.position.y+=(targetY-visual.group.position.y)*lerpFactor;
+      visual.group.position.z+=(targetZ-visual.group.position.z)*lerpFactor;
+    }
+    visual.group.rotation.y+=(actor.angle-visual.group.rotation.y)*lerpFactor;
+    visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;
+
+    const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);
+    if(visual===player&&player.animatePose){
+      const myChair=chairState?.actors?.find(a=>a.id===myLanId);
+      const seated=myChair?.seated!=null;
+      const carried=chairState?.carried===myLanId;
+      player.animatePose({health:game.health,moving,time,vault:v,sprint:game.dashRemaining>0,seated,carried});
+    }else if(visual.legs){
+      visual.legs.forEach((l,i)=>{
+        l.rotation.x=v?Math.sin(t*Math.PI)*(i===0?-1.5:.9):moving?Math.sin(time*(game.dashRemaining>0?22:10)+i*Math.PI)*.65:0;
+        l.rotation.z=v?Math.sin(t*Math.PI)*(i===0?-.3:.3):0;
+      });
+    }
+  }
+
+  // Smooth position lerping for remote survivors
+  if(game.survivors){
+    for(const s of game.survivors){
+      if(s===game.player)continue;
+      let sMesh=survivorMeshes.get(s.id||s.nickname);
+      if(!sMesh&&three){
+        const pObj=createSurvivorMesh(three.T,s.character||'mercenary');
+        pObj.group.visible=true;
+        pObj.group.scale.setScalar(0.8);
+        three.scene.add(pObj.group);
+        const cv=document.createElement('canvas');cv.width=256;cv.height=64;
+        const cx=cv.getContext('2d');cx.fillStyle='#111a18cc';cx.fillRect(0,0,256,64);
+        cx.font='bold 26px sans-serif';cx.textAlign='center';cx.fillStyle=s.isAi?'#adb5a8':'#d6ed91';
+        cx.fillText(s.nickname||'求生者',128,42);
+        const sp=new three.T.Sprite(new three.T.SpriteMaterial({map:new three.T.CanvasTexture(cv)}));
+        sp.scale.set(3,.75,1);sp.position.set(0,3.2,0);
+        pObj.group.add(sp);
+        sMesh={group:pObj.group,legs:pObj.legs,survivorObj:pObj,character:s.character||'mercenary'};
+        survivorMeshes.set(s.id||s.nickname,sMesh);
+      }
+      if(sMesh){
+        if(s.character&&sMesh.character!==s.character&&sMesh.survivorObj?.updateCharacter){
+          sMesh.character=s.character;
+          sMesh.survivorObj.updateCharacter(s.character);
         }
-        if(sMesh){
-          if(s.character&&sMesh.character!==s.character&&sMesh.survivorObj?.updateCharacter){
-            sMesh.character=s.character;
-            sMesh.survivorObj.updateCharacter(s.character);
-          }
-          sMesh.group.position.set(s.x,s.z||0,s.y);
-          sMesh.group.rotation.y=s.angle||0;
-          const moving=(Math.hypot(s.x-(s.lastX||s.x),s.y-(s.lastY||s.y))>0.005);
-          s.lastX=s.x;s.lastY=s.y;
-          sMesh.group.visible=true;
-          const peerChair=chairState?.actors?.find(a=>a.id===s.id);
-          const seated=peerChair?.seated!=null;
-          const carried=chairState?.carried===s.id;
-          if(sMesh.survivorObj&&sMesh.survivorObj.animatePose){
-            sMesh.survivorObj.animatePose({health:s.health??2,moving,time,seated,carried});
-          }else{
-            sMesh.legs.forEach((l,i)=>{l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.55:0;});
-            if((s.health??2)<=0){sMesh.group.rotation.x=Math.PI/2;sMesh.group.position.y=.3;}
-            else{sMesh.group.rotation.x=0;}
-          }
+        const targetX=s.x,targetZ=s.y,targetY=s.z||0;
+        if(Math.hypot(sMesh.group.position.x-targetX,sMesh.group.position.z-targetZ)>4){
+          sMesh.group.position.set(targetX,targetY,targetZ);
+        }else{
+          sMesh.group.position.x+=(targetX-sMesh.group.position.x)*lerpFactor;
+          sMesh.group.position.y+=(targetY-sMesh.group.position.y)*lerpFactor;
+          sMesh.group.position.z+=(targetZ-sMesh.group.position.z)*lerpFactor;
+        }
+        sMesh.group.rotation.y+=((s.angle||0)-sMesh.group.rotation.y)*lerpFactor;
+        const moving=(Math.hypot(s.x-(s.lastX||s.x),s.y-(s.lastY||s.y))>0.005);
+        s.lastX=s.x;s.lastY=s.y;
+        sMesh.group.visible=true;
+        const peerChair=chairState?.actors?.find(a=>a.id===s.id);
+        const seated=peerChair?.seated!=null;
+        const carried=chairState?.carried===s.id;
+        if(sMesh.survivorObj&&sMesh.survivorObj.animatePose){
+          sMesh.survivorObj.animatePose({health:s.health??2,moving,time,seated,carried});
+        }else if(sMesh.legs){
+          sMesh.legs.forEach((l,i)=>{l.rotation.x=moving?Math.sin(time*10+i*Math.PI)*.55:0;});
+          if((s.health??2)<=0){sMesh.group.rotation.x=Math.PI/2;sMesh.group.position.y=.3;}
+          else{sMesh.group.rotation.x=0;}
         }
       }
     }
+  }
 
-    if(three.player.updateCharacter)three.player.updateCharacter(game.characterId);
-    const ownPose=chairState?.actors?.find(a=>a.id===myLanId);player.animatePose({health:game.health,moving:Math.hypot(input.x,input.y)>.1,time,vault:game.vault,seated:ownPose?.seated!=null,carried:chairState?.carried===myLanId});
-    generators.forEach((m,i)=>{
-      const done=(game.generators[i]?.p||0)>=100;
-      m.material.color.set(done?0x68f070:0xffcc00);
-      m.material.emissive.set(done?0x26c030:0xffaa00);
-      m.material.emissiveIntensity=done?1.8:2.6;
-      const group=m.parent;
-      if(group&&group.userData.beaconLight){
-        group.userData.beaconLight.color.set(done?0x40e050:0xffaa00);
-        group.userData.beaconLight.intensity=done?3.5:5.5;
-      }
-    });pallets.forEach((m,i)=>{const p=game.pallets[i],t=p.down?1-p.drop/.4:0;m.rotation.x=t*Math.PI/2;m.position.y=1.5-t*1.1;});gate.position.y=2.5+game.exit.p/100*6;const target=new T.Vector3(game.player.x+Math.sin(cameraAngle)*12,10,game.player.y+Math.cos(cameraAngle)*12);camera.position.lerp(target,1-Math.exp(-dt*8));camera.lookAt(game.player.x,2,game.player.y);renderer.render(scene,camera);}
+  if(three.player.updateCharacter)three.player.updateCharacter(game.characterId);
+  const ownPose=chairState?.actors?.find(a=>a.id===myLanId);
+  player.animatePose({health:game.health,moving:Math.hypot(input.x,input.y)>.1,time,vault:game.vault,seated:ownPose?.seated!=null,carried:chairState?.carried===myLanId});
+
+  generators.forEach((m,i)=>{
+    const done=(game.generators[i]?.p||0)>=100;
+    m.material.color.set(done?0x68f070:0xffcc00);
+    m.material.emissive.set(done?0x26c030:0xffaa00);
+    m.material.emissiveIntensity=done?1.8:2.6;
+    const group=m.parent;
+    if(group&&group.userData.beaconLight){
+      group.userData.beaconLight.color.set(done?0x40e050:0xffaa00);
+      group.userData.beaconLight.intensity=done?3.5:5.5;
+    }
+  });
+
+  pallets.forEach((m,i)=>{
+    const p=game.pallets[i];
+    if(!p){m.visible=false;return;}
+    m.visible=!p.broken;
+    const t=p.down?1-p.drop/.4:0;
+    m.rotation.x=t*Math.PI/2;
+    m.position.y=1.5-t*1.1;
+  });
+
+  gate.position.y=2.5+game.exit.p/100*6;
+  if(three.hunter.group.userData.skinId!==game.hunterId)three.hunter.updateSkin(game.hunterId);
+  three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
+
+  const glow=three.scene.getObjectByName('hunterRedLight');
+  if(glow){
+    glow.position.set(three.hunter.group.position.x,.07+three.hunter.group.position.y,three.hunter.group.position.z);
+    glow.rotation.y=game.hunter.angle||0;
+  }
+
+  // Refined attack and recovery animations
+  const a=game.attack,pivot=three.hunter.group.userData?.wepPivot,armR=three.hunter.group.userData?.armR;
+  if(pivot&&armR){
+    if(a?.phase==='windup'){
+      const progress=Math.min(1,a.elapsed/a.duration);
+      pivot.rotation.x=-Math.sin(progress*Math.PI)*1.85;
+      pivot.rotation.z=-Math.sin(progress*Math.PI)*.45;
+      armR.rotation.x=pivot.rotation.x*.8;
+    }else if(a?.phase==='recovery'){
+      const progress=Math.min(1,a.elapsed/a.recoveryTime);
+      pivot.rotation.x=.65+Math.sin(progress*Math.PI*2)*.15;
+      pivot.rotation.z=.4;
+      armR.rotation.x=.5;
+    }else{
+      pivot.rotation.set(0,0,0);
+      armR.rotation.set(0,0,0);
+    }
+  }
+
+  // Single authoritative camera update and single render pass per frame
+  updateCamera();
+  renderer.render(scene,camera);
+}
 let input={x:0,y:0};function frame(t){let dt=last?Math.min((t-last)/1000,.05):.016;last=t;time+=dt;let x=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+joy.x,y=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+joy.y;[x,y]=[x*Math.cos(cameraAngle)+y*Math.sin(cameraAngle),y*Math.cos(cameraAngle)-x*Math.sin(cameraAngle)];const myAngle=Math.hypot(x,y)>0.05?Math.atan2(x,y):cameraAngle;input={x,y,angle:myAngle,interact:keys.e||held.interact||tapped.interact,dash:keys.q||held.dash||tapped.dash};const active=!document.hidden&&$('#settings').hidden&&(!matchMedia('(pointer:coarse)').matches||$('#rotateHint').classList.contains('dismissed'));if(sharedMatch){if(lanSocket?.readyState===WebSocket.OPEN&&time-lastNetworkInput>=.05){lanSocket.send(JSON.stringify({type:'input',input:active?input:{x:0,y:0,angle:myAngle}}));lastNetworkInput=time;tapped.interact=false;tapped.dash=false;}}else if(active){game.update(dt,input);tapped.interact=false;tapped.dash=false;}if(three){three.player.group.visible=game.role!=='hunter';drawThree(dt);}updateHUD();requestAnimationFrame(frame);}
 let lastNetworkInput=0;
 function tickLocalMatch(){if(!localMatch||!sharedMatch)return;const active=!document.hidden&&$('#settings').hidden;localMatch.input(myLanId,active?input:{x:0,y:0});if(active)localMatch.update(.05);chairState=localMatch.chairSnapshot();const state=localMatch.snapshot();teamActors=state.actors.filter(a=>a.role==='survivor');applyWorld(state);}
@@ -548,25 +632,141 @@ function updateHUD(){
   quickRoot.hidden=game.role!=='survivor'||game.status!=='playing'||!lanRoomCode; if(roomPhase==='characters'&&!$('#roomLobby').hidden)$('#playerCountText').textContent='选角剩余 '+preparationRemaining(roomDeadline)+' 秒';if(chairState?.result&&chairState.scores){let list=$('#resultScores');if(!list){list=document.createElement('div');list.id='resultScores';$('#matchResults').insertBefore(list,$('#returnRoom'));}list.replaceChildren();for(const p of chairState.scores){const row=document.createElement('p');row.textContent=`${p.nickname||p.character} · ${p.result} · 演绎分 ${p.score}`;list.appendChild(row);}}
   const mi=chairState?.interactions,me=chairState?.actors?.find(a=>a.id===myLanId),pos=game.controlled;let action=null,index=-1;if(mi){index=mi.lockers.findIndex(l=>distance(l,pos)<3);if(index>=0)action='locker';if(game.role==='hunter'&&index<0){index=game.windows.findIndex(w=>distance(w,pos)<3);if(index>=0)action='hunter_vault';}$('#mapAction').hidden=!action||game.status!=='playing';$('#mapAction').textContent=action==='hunter_vault'?'翻窗 / 封窗':game.role==='hunter'?'搜索柜子':me?.hidden!=null?'离开柜子':'躲入柜子';$('#mapAction').onclick=()=>sendAction(action,index);}else $('#mapAction').hidden=true;
   const rules=chairState?.rules;if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';if(game.role==='hunter'&&rules.detention>0)game.message='挽留 '+Math.ceil(rules.detention)+' 秒';const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed')game.message='按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';if(state==='carried')game.message='按住交互挣扎 '+Math.floor(rules.struggle*100)+'%';}
-  if(three&&chairState?.hunterSkills){const s=chairState.hunterSkills;let fx=three.scene.getObjectByName('hunterSkillFx');if(!fx){fx=new three.T.Group();fx.name='hunterSkillFx';three.scene.add(fx);}while(fx.children.length) {const m=fx.children[0];fx.remove(m);m.geometry.dispose();m.material.dispose();}const T=three.T;for(const p of s.projectiles){const m=new T.Mesh(new T.SphereGeometry(.7,8,5),new T.MeshBasicMaterial({color:0xaad6ce,transparent:true,opacity:.65}));m.scale.set(1,.3,1.8);m.position.set(p.x,p.z+1.4,p.y);m.rotation.y=p.angle;fx.add(m);}for(const p of s.trail){const m=new T.Mesh(new T.CircleGeometry(1.2,8),new T.MeshBasicMaterial({color:0x67b7c9,transparent:true,opacity:.35,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(p.x,p.z+.06,p.y);fx.add(m);}for(const z of s.zones){const shape=new T.Shape();z.polygon.forEach((p,i)=>i?shape.lineTo(p.x,-p.y):shape.moveTo(p.x,-p.y));shape.closePath();const m=new T.Mesh(new T.ShapeGeometry(shape),new T.MeshBasicMaterial({color:0x429bab,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));m.rotation.x=-Math.PI/2;m.position.y=z.z+.05;fx.add(m);}}
-  input.skill=!!keys.f||hunterSkillHeld;$('#hunterSkill').hidden=game.role!=='hunter'||game.status!=='playing';const hs=chairState?.hunterSkills;$('#hunterSkill').disabled=game.hunterId==='naiad'||(hs?.cooldown||0)>0;$('#hunterSkill').textContent=game.hunterId==='naiad'?'水迹 · 被动':hs?.rocket>0?'冲刺 '+hs.rocket.toFixed(1)+'s':hs?.cooldown>0?hs.cooldown.toFixed(1)+'s':'F · '+game.currentHunter.skill;
-  if(sharedMatch&&chairState?.result){$('#matchResults').hidden=false;$('#resultTitle').textContent=chairState.result.winner==='draw'?'平局':chairState.result.winner==='survivors'?'求生者获胜':'监管者获胜';$('#resultDetails').textContent=`逃脱 ${chairState.result.escaped} 人 · 淘汰 ${chairState.result.eliminated} 人`;game.status='playing';}
-  const teamRoot=$('#teamStatus');teamRoot.hidden=game.status==='ready';if(!teamRoot.hidden){const actors=sharedMatch?teamActors:[{id:'single',nickname:game.character.name,health:game.health}];renderTeam(teamRoot,actors,chairState);}
-  if(chairState&&sharedMatch){const me=chairState.actors.find(a=>a.id===myLanId);if(me?.seated!=null){game.message='上椅淘汰进度 '+Math.round(chairState.chairs[me.seated].progress/60*100)+'%';}else if(me?.eliminated)game.message='已淘汰';else if(game.role==='hunter')game.message=chairState.carried?'牵气球中 · 靠近椅子按 E 挂椅':'靠近倒地求生者按 E 牵气球';}
+  // Update hunter skill fx without disposing every frame
+  if(three&&chairState?.hunterSkills){
+    const s=chairState.hunterSkills;
+    let fx=three.scene.getObjectByName('hunterSkillFx');
+    if(!fx){
+      fx=new three.T.Group();
+      fx.name='hunterSkillFx';
+      three.scene.add(fx);
+    }
+    const T=three.T;
+    const projs=s.projectiles||[];
+    while(fx.children.length<projs.length){
+      const m=new T.Mesh(new T.SphereGeometry(.7,8,5),new T.MeshBasicMaterial({color:0xaad6ce,transparent:true,opacity:.65}));
+      m.scale.set(1,.3,1.8);
+      fx.add(m);
+    }
+    fx.children.forEach((m,idx)=>{
+      if(idx<projs.length){
+        m.visible=true;
+        const p=projs[idx];
+        m.position.set(p.x,p.z+1.4,p.y);
+        m.rotation.y=p.angle;
+      }else{
+        m.visible=false;
+      }
+    });
+  }
+
+  input.skill=!!keys.f||hunterSkillHeld;
+  $('#hunterSkill').hidden=game.role!=='hunter'||game.status!=='playing';
+  const hs=chairState?.hunterSkills;
+  $('#hunterSkill').disabled=game.hunterId==='naiad'||(hs?.cooldown||0)>0;
+  $('#hunterSkill').textContent=game.hunterId==='naiad'?'水迹 · 被动':hs?.rocket>0?'冲刺 '+hs.rocket.toFixed(1)+'s':hs?.cooldown>0?hs.cooldown.toFixed(1)+'s':'F · '+game.currentHunter.skill;
+  if(sharedMatch&&chairState?.result){
+    $('#matchResults').hidden=false;
+    $('#resultTitle').textContent=chairState.result.winner==='draw'?'平局':chairState.result.winner==='survivors'?'求生者获胜':'监管者获胜';
+    $('#resultDetails').textContent=`逃脱 ${chairState.result.escaped} 人 · 淘汰 ${chairState.result.eliminated} 人`;
+    game.status='playing';
+  }
+  const teamRoot=$('#teamStatus');
+  teamRoot.hidden=game.status==='ready';
+  if(!teamRoot.hidden){
+    const actors=sharedMatch?teamActors:[{id:'single',nickname:game.character.name,health:game.health}];
+    renderTeam(teamRoot,actors,chairState);
+  }
+  if(chairState&&sharedMatch){
+    const me=chairState.actors.find(a=>a.id===myLanId);
+    if(me?.seated!=null){
+      game.message='上椅淘汰进度 '+Math.round(chairState.chairs[me.seated].progress/60*100)+'%';
+    }else if(me?.eliminated)game.message='已淘汰';
+    else if(game.role==='hunter')game.message=chairState.carried?'牵气球中 · 靠近椅子按 E 挂椅':'靠近倒地求生者按 E 牵气球';
+  }
   if(layoutEditing()){clearInput();$('#interact').disabled=false;$('#dash').disabled=false;return;}
-  if(view==='third'&&three&&game.role==='hunter'){const a=game.hunter;three.camera.position.set(a.x+Math.sin(cameraAngle)*12,10,a.y+Math.cos(cameraAngle)*12);three.camera.lookAt(a.x,2,a.y);three.pallets.forEach((m,i)=>m.visible=!game.pallets[i].broken);three.renderer.render(three.scene,three.camera);}
   const near=game.nearby,close=near&&distance(near,game.player)<6,repairing=close&&['generator','exit'].includes(near.type),decode=game.decoding;
   $('#time').textContent=Math.floor(game.time/60).toString().padStart(2,'0')+':'+Math.floor(game.time%60).toString().padStart(2,'0');
   $('#count').textContent=game.powered===3?'电力已恢复 · 开启逃生闸门':'还需启动 '+(3-game.powered)+' 台发电机';
-  $('#characterName').textContent=game.role==='hunter'?'监管者':game.character.name;$('#energy').textContent=game.role==='hunter'?(game.stun>0?'眩晕中':game.attack?.phase==='windup'?'挥击中':game.attack?'擦刀中':'追击中'):game.vault?'翻越中':game.vaultBoost>0?'翻窗加速 +30%':game.dashRemaining>0?'疾步冲刺':game.shield>0?'护光生效':'普通移动';
-  if(three){while(three.pallets.length<game.pallets.length){const p=game.pallets[three.pallets.length],m=new three.T.Mesh(new three.T.BoxGeometry(4,3,.6),new three.T.MeshStandardMaterial({color:0xb59b69,roughness:.9}));m.position.set(p.x,1.5,p.y);three.scene.add(m);three.pallets.push(m);}game.windows.forEach(w=>{const name='window:'+w.x+':'+w.y;if(!three.scene.getObjectByName(name)){const group=new three.T.Group();group.name=name;group.position.set(w.x,0,w.y);for(const [x,y,width,height] of [[-2.2,1.9,.6,3.8],[2.2,1.9,.6,3.8],[0,1.2,4,.35],[0,3.8,4,.35]]){const m=new three.T.Mesh(new three.T.BoxGeometry(width,height,.7),new three.T.MeshStandardMaterial({color:0x909479}));m.position.set(x,y,0);group.add(m);}three.scene.add(group);}});three.gate.position.x=game.exit.x;three.generators.forEach((lamp,i)=>lamp.parent.position.set(game.generators[i].x,0,game.generators[i].y));const smoke=three.scene.getObjectByName('skillSmoke');smoke.visible=!!game.smoke;if(game.smoke){smoke.position.set(game.smoke.x,1,game.smoke.y);smoke.scale.set(game.smoke.r,3,game.smoke.r);}}
-  $('#health').textContent=game.health===2?'健康':game.health===1?'受伤':'倒地';$('#health').style.color=game.health===2?'#d6ed91':'#e78265';
+  $('#characterName').textContent=game.role==='hunter'?'监管者':game.character.name;
+  $('#energy').textContent=game.role==='hunter'?(game.stun>0?'眩晕中':game.attack?.phase==='windup'?'挥击中':game.attack?'擦刀中':'追击中'):game.vault?'翻越中':game.vaultBoost>0?'翻窗加速 +30%':game.dashRemaining>0?'疾步冲刺':game.shield>0?'护光生效':'普通移动';
+
+  if(three){
+    while(three.pallets.length<game.pallets.length){
+      const p=game.pallets[three.pallets.length],m=new three.T.Mesh(new three.T.BoxGeometry(4,3,.6),new three.T.MeshStandardMaterial({color:0xb59b69,roughness:.9}));
+      m.position.set(p.x,1.5,p.y);
+      three.scene.add(m);
+      three.pallets.push(m);
+    }
+    game.windows.forEach(w=>{
+      const name='window:'+w.x+':'+w.y;
+      if(!three.scene.getObjectByName(name)){
+        const group=new three.T.Group();
+        group.name=name;
+        group.position.set(w.x,0,w.y);
+        for(const [x,y,width,height] of [[-2.2,1.9,.6,3.8],[2.2,1.9,.6,3.8],[0,1.2,4,.35],[0,3.8,4,.35]]){
+          const m=new three.T.Mesh(new three.T.BoxGeometry(width,height,.7),new three.T.MeshStandardMaterial({color:0x909479}));
+          m.position.set(x,y,0);
+          group.add(m);
+        }
+        three.scene.add(group);
+      }
+    });
+    three.gate.position.x=game.exit.x;
+    three.generators.forEach((lamp,i)=>lamp.parent.position.set(game.generators[i].x,0,game.generators[i].y));
+    const smoke=three.scene.getObjectByName('skillSmoke');
+    smoke.visible=!!game.smoke;
+    if(game.smoke){
+      smoke.position.set(game.smoke.x,1,game.smoke.y);
+      smoke.scale.set(game.smoke.r,3,game.smoke.r);
+    }
+
+    if(rules?.hatch){
+      let hatch=three.scene.getObjectByName('escapeHatch');
+      if(!hatch){
+        hatch=new three.T.Mesh(new three.T.BoxGeometry(2.8,.12,2.8),new three.T.MeshStandardMaterial({color:0x574e3e}));
+        hatch.name='escapeHatch';
+        three.scene.add(hatch);
+      }
+      hatch.position.set(rules.hatch.x,.08,rules.hatch.y);
+      hatch.material.color.setHex(rules.hatch.open?0x96c881:0x574e3e);
+      if(rules.hatch.open&&distance(game.player,rules.hatch)<3)$('#prompt').textContent='E / 交互跳入地窖';
+    }
+    three.gate.visible=false;
+    for(const m of three.scene.children){
+      if(m.name==='upperFloor'||m.name==='buildingRoof'){
+        m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;
+      }
+      if(m.name==='escapeGate'){
+        const e=game.exits.find(e=>e.x===m.userData.exit.x);
+        m.position.y=2.5+(e?.p||0)/100*6;
+      }
+    }
+    if(game.role==='hunter'){
+      for(const [id,model] of survivorMeshes){
+        model.group.traverse(o=>{
+          if(o.material?.emissive){
+            o.material.emissive.setHex(rules?.reveal.includes(id)?0x704f15:0);
+            o.material.depthTest=!rules?.reveal.includes(id);
+          }
+        });
+      }
+    }
+    if(mi){
+      three.player.group.visible=game.role!=='hunter'&&me?.hidden==null;
+      for(const [id,m] of survivorMeshes)m.group.visible=chairState.actors.find(a=>a.id===id)?.hidden==null;
+    }
+  }
+
+  $('#health').textContent=game.health===2?'健康':game.health===1?'受伤':'倒地';
+  $('#health').style.color=game.health===2?'#d6ed91':'#e78265';
   if(previousMessage!==game.message){previousMessage=game.message;messageUntil=time+3.5;$('#message').textContent=game.message;}
   $('#message').classList.toggle('visible',time<messageUntil&&game.status==='playing');
   $('#repairPanel').hidden=(!repairing&&!decode&&!game.healing)||game.status!=='playing';
   $('#repairLabel').firstChild.textContent=game.healing?'医生自愈 ':decode?'正在破译 ':near?.type==='exit'?'开启闸门 ':'破译进度 ';
   const progress=game.healing?game.healProgress:decode?.p??(near?.ref?.p||0);
-  $('#repair').textContent=repairing||decode||game.healing?Math.floor(progress)+'%':'—';$('#repairbar').style.width=repairing||decode||game.healing?progress+'%':'0%';
+  $('#repair').textContent=repairing||decode||game.healing?Math.floor(progress)+'%':'—';
+  $('#repairbar').style.width=repairing||decode||game.healing?progress+'%':'0%';
   const machine=game.generators.find(g=>g.p<100&&distance(g,game.player)<6&&Math.abs((game.player.z||0)-(g.z||0))<1.5);
   $('#decodeButton').hidden=!machine||game.status!=='playing'||!$('#settings').hidden||!!game.calibration||!$('#rotateHint').classList.contains('dismissed');
   $('#decodeButton small').textContent=game.decoding===machine?'退出':'破译';
@@ -581,7 +781,8 @@ function updateHUD(){
   $('#dash').disabled=game.status!=='playing'||game.dashCooldown>0;
   $('#dash').classList.toggle('ready',game.dashCooldown<=0);
   $('#dashTime').textContent=game.dashCooldown>0?game.dashCooldown.toFixed(1)+'s':'Q · '+game.character.skill;
-  $('#dash').disabled=$('#dash').disabled||!!game.vault||game.characterId==='doctor'&&game.health!==1;$('#dash').setAttribute('aria-label',game.character.skill);
+  $('#dash').disabled=$('#dash').disabled||!!game.vault||game.characterId==='doctor'&&game.health!==1;
+  $('#dash').setAttribute('aria-label',game.character.skill);
   if(game.healing)$('#prompt').textContent='医生自愈中 · 移动或受击中断';
   $('#interact').textContent=near?.type==='palletVault'?'翻板':near?.type==='window'?'翻窗':near?.type==='pallet'?'放板':near?.type==='heal'?'包扎':near?.type==='generator'?'破译':'交互';
   if(near?.type==='palletVault'&&!decode&&!game.calibration){const blocked=game.palletVaultLock>0||game.palletReleaseRequired;$('#prompt').textContent=blocked?'放板恢复中 · 松开交互后再翻板':'靠近木板 · 点击交互翻板';$('#interact').disabled=blocked;}else $('#interact').disabled=!!game.vault;
@@ -589,51 +790,38 @@ function updateHUD(){
   $('.bottom').hidden=!$('#prompt').textContent||game.status!=='playing';
   $('#threat').textContent=game.stun>0?'追猎者已被眩晕':game.chasing?'危险 · 追猎者正在逼近':'';
   $('.threat').hidden=!$('#threat').textContent||game.status!=='playing';
-  if(three){
-    three.player.group.position.y=(game.player.z||0)+(game.vault?Math.sin(game.vault.elapsed*Math.PI)*.75:0);
-    three.player.group.scale.setScalar(0.8);
-    three.hunter.group.position.y=game.hunter.z||0;
-    three.hunter.group.scale.setScalar(0.72);
-    if(three.hunter.group.userData.skinId!==game.hunterId)three.hunter.updateSkin(game.hunterId);
-    three.scene.children.filter(m=>m.name==='upperFloor').forEach(m=>m.visible=(game.controlled.z||0)>1);
-    three.pallets.forEach((m,i)=>{
-      const p=game.pallets[i];if(!p){m.visible=false;return;}
-      const pose=palletPose(p);m.visible=!p.broken;
-      m.rotation.set(0,0,-pose.angle);
-      m.scale.set(1.3/4,4/3,1);
-      m.position.set(pose.baseX+2*Math.sin(pose.angle),2*Math.cos(pose.angle),p.y);
-    });
-    const glow=three.scene.getObjectByName('hunterRedLight');
-    if(glow){glow.position.set(game.hunter.x,.07+(game.hunter.z||0),game.hunter.y);glow.rotation.y=game.hunter.angle||0;}
 
-    // Refined attack and recovery animations: windup slash, blade clean pause
-    const a=game.attack,pivot=three.hunter.group.userData?.wepPivot,armR=three.hunter.group.userData?.armR;
-    if(pivot&&armR){
-      if(a?.phase==='windup'){
-        const progress=Math.min(1,a.elapsed/a.duration);
-        pivot.rotation.x=-Math.sin(progress*Math.PI)*1.85; // heavy forward-downward cleave
-        pivot.rotation.z=-Math.sin(progress*Math.PI)*.45;
-        armR.rotation.x=pivot.rotation.x*.8;
-      }else if(a?.phase==='recovery'){
-        const progress=Math.min(1,a.elapsed/a.recoveryTime);
-        pivot.rotation.x=.65+Math.sin(progress*Math.PI*2)*.15; // blade raised across chest for wiping
-        pivot.rotation.z=.4;
-        armR.rotation.x=.5;
-      }else{
-        pivot.rotation.set(0,0,0);
-        armR.rotation.set(0,0,0);
-      }
+  if(sharedMatch&&chairState&&!chairState.result){
+    const c=chairState.chairs.find(c=>c.occupant&&distance(c,game.player)<3),rescue=chairState.rescues.find(r=>r.id===myLanId);
+    if(game.role==='survivor'&&c&&game.health>0){
+      $('#interact').textContent='救人';
+      $('#prompt').textContent=rescue?'救援中 '+Math.floor(rescue.time*100)+'% · 受击会震慑':'点击 E / 交互救人（1秒）';
+      $('.bottom').hidden=false;
     }
-    const focus=game.controlled;
-    three.camera.position.set(focus.x+Math.sin(cameraAngle)*12,10+(focus.z||0),focus.y+Math.cos(cameraAngle)*12);
-    three.camera.lookAt(focus.x,2+(focus.z||0),focus.y);
-    three.renderer.render(three.scene,three.camera);
+    if(game.role==='hunter'){
+      const near=chairLocations.some(c=>distance(c,game.hunter)<3);
+      $('#interact').textContent=chairState.carried&&near?'挂椅':chairState.carried?'牵气球':'牵起';
+    }
   }
-  if(three){if(rules?.hatch){let hatch=three.scene.getObjectByName('escapeHatch');if(!hatch){hatch=new three.T.Mesh(new three.T.BoxGeometry(2.8,.12,2.8),new three.T.MeshStandardMaterial({color:0x574e3e}));hatch.name='escapeHatch';three.scene.add(hatch);}hatch.position.set(rules.hatch.x,.08,rules.hatch.y);hatch.material.color.setHex(rules.hatch.open?0x96c881:0x574e3e);if(rules.hatch.open&&distance(game.player,rules.hatch)<3)$('#prompt').textContent='E / 交互跳入地窖';}three.gate.visible=false;for(const m of three.scene.children){if(m.name==='upperFloor'||m.name==='buildingRoof'){m.visible=true;m.material.transparent=false;m.material.opacity=1;m.material.depthWrite=true;}if(m.name==='escapeGate'){const e=game.exits.find(e=>e.x===m.userData.exit.x);m.position.y=2.5+(e?.p||0)/100*6;}}if(game.role==='hunter')for(const [id,model] of survivorMeshes){model.group.traverse(o=>{if(o.material?.emissive){o.material.emissive.setHex(rules?.reveal.includes(id)?0x704f15:0);o.material.depthTest=!rules?.reveal.includes(id);}});}updateCamera();three.renderer.render(three.scene,three.camera);}
-  if(sharedMatch&&chairState&&!chairState.result){const c=chairState.chairs.find(c=>c.occupant&&distance(c,game.player)<3),rescue=chairState.rescues.find(r=>r.id===myLanId);if(game.role==='survivor'&&c&&game.health>0){$('#interact').textContent='救人';$('#prompt').textContent=rescue?'救援中 '+Math.floor(rescue.time*100)+'% · 受击会震慑':'点击 E / 交互救人（1秒）';$('.bottom').hidden=false;}if(game.role==='hunter'){const near=chairLocations.some(c=>distance(c,game.hunter)<3);$('#interact').textContent=chairState.carried&&near?'挂椅':chairState.carried?'牵气球':'牵起';}}
-  if(three&&mi){three.player.group.visible=game.role!=='hunter'&&me?.hidden==null;for(const [id,m] of survivorMeshes)m.group.visible=chairState.actors.find(a=>a.id===id)?.hidden==null;three.renderer.render(three.scene,three.camera);}
-  if(!sharedMatch&&['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){showOverlay();if(game.role==='hunter'){$('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';$('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';}}
-  if(rules){$('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';$('#time').textContent=game.role==='hunter'&&rules.detention>0?'挽留 '+Math.ceil(rules.detention)+'s':Math.floor(Math.max(0,300-game.time)/60).toString().padStart(2,'0')+':'+Math.floor(Math.max(0,300-game.time)%60).toString().padStart(2,'0');const state=chairState.actors.find(a=>a.id===myLanId)?.state;if(state==='downed'||state==='carried'){$('#interact').textContent=state==='carried'?'挣扎':'自愈';$('#prompt').textContent=state==='carried'?'按住交互挣扎 '+Math.floor(rules.struggle*100)+'%':'按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';$('.bottom').hidden=false;}if(game.role==='hunter'&&rules.tinnitus)$('#threat').textContent='耳鸣 · 附近有求生者';}
+
+  if(!sharedMatch&&['lost','won'].includes(game.status)&&$('#overlay').style.display==='none'){
+    showOverlay();
+    if(game.role==='hunter'){
+      $('#overlay h2').textContent=game.health<=0?'追击成功':game.status==='won'?'逃生者已逃脱':'对局结束';
+      $('#overlay p:not(.eyebrow)').textContent=game.health<=0?'你已击倒逃生者':'本局演练结束';
+    }
+  }
+  if(rules){
+    $('#count').textContent=rules.powered?'大门已通电':'还需破译 '+Math.max(0,5-rules.decoded)+' 台密码机';
+    $('#time').textContent=game.role==='hunter'&&rules.detention>0?'挽留 '+Math.ceil(rules.detention)+'s':Math.floor(Math.max(0,300-game.time)/60).toString().padStart(2,'0')+':'+Math.floor(Math.max(0,300-game.time)%60).toString().padStart(2,'0');
+    const state=chairState.actors.find(a=>a.id===myLanId)?.state;
+    if(state==='downed'||state==='carried'){
+      $('#interact').textContent=state==='carried'?'挣扎':'自愈';
+      $('#prompt').textContent=state==='carried'?'按住交互挣扎 '+Math.floor(rules.struggle*100)+'%':'按住交互自愈 '+Math.floor((rules.recovery[myLanId]||0)*100)+'%';
+      $('.bottom').hidden=false;
+    }
+    if(game.role==='hunter'&&rules.tinnitus)$('#threat').textContent='耳鸣 · 附近有求生者';
+  }
 }
 function updateCamera(){const {T,camera,scene}=three,a=game.controlled;const targetY=game.role==='hunter'?(a.z||0)+1.65:(a.z||0)+1.25;const target=new T.Vector3(a.x,targetY,a.y);const length=game.role==='hunter'?4.8:4.2;const offset=new T.Vector3(Math.sin(cameraAngle)*Math.cos(cameraPitch)*length,Math.sin(cameraPitch)*length,Math.cos(cameraAngle)*Math.cos(cameraPitch)*length);const direction=offset.clone().normalize();const ray=new T.Raycaster(target,direction,.1,length+.3);const blockers=scene.children.filter(m=>m.isMesh&&m.visible&&!['hunterRedLight','skillSmoke'].includes(m.name)&&!three.pallets.includes(m)&&m!==three.gate&&m.material?.opacity>=.9);const hit=ray.intersectObjects(blockers,false)[0];const distance=hit?Math.max(.45,Math.min(length,hit.distance-.3)):length;camera.position.copy(target).addScaledVector(direction,distance);camera.position.y=Math.max((a.z||0)+.3,camera.position.y);camera.lookAt(target);}
 async function loadGame(){canvas.style.display='none';$('#webgl').style.display='block';$('#start').disabled=true;$('#start').textContent='正在加载 3D…';try{await setupThree();$('#start').disabled=false;$('#start').textContent='开始演练';}catch(error){console.error(error);$('#overlay p:not(.eyebrow)').textContent='3D 加载失败，请检查网络或浏览器 WebGL 支持。';$('#start').textContent='重试加载';$('#start').disabled=false;$('#start').onclick=async()=>{await loadGame();if(three)$('#start').onclick=begin;};}}

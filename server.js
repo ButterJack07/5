@@ -35,9 +35,8 @@ class WSServer {
     });
   }
 
-  send(client,data){
-    if(client.socket.destroyed)return;
-    const json=JSON.stringify(data);
+  encodeFrame(data){
+    const json=typeof data==='string'?data:JSON.stringify(data);
     const payload=Buffer.from(json);
     const len=payload.length;
     let header;
@@ -50,14 +49,21 @@ class WSServer {
       header=Buffer.alloc(10);
       header[0]=0x81;header[1]=127;header.writeBigUInt64BE(BigInt(len),2);
     }
-    client.socket.write(Buffer.concat([header,payload]));
+    return Buffer.concat([header,payload]);
+  }
+
+  send(client,data){
+    if(client.socket.destroyed)return;
+    const frame=Buffer.isBuffer(data)?data:this.encodeFrame(data);
+    client.socket.write(frame);
   }
 
   broadcast(roomCode,data,excludeClient=null){
     const r=this.rooms.get(roomCode);
     if(!r)return;
+    const frame=Buffer.isBuffer(data)?data:this.encodeFrame(data);
     for(const c of r.players){
-      if(c!==excludeClient)this.send(c,data);
+      if(c!==excludeClient&&!c.socket.destroyed)c.socket.write(frame);
     }
   }
   roster(r){return [...r.players].map((p,i)=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,ready:!!p.ready,slot:p.slot,isHost:i===0}));}
@@ -133,9 +139,7 @@ class WSServer {
       r.bots=r.bots.filter(i=>i!==client.slot);
       client.character=msg.character||'mercenary';
       r.players.add(client);
-      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
-      this.send(client,{type:'room_joined',room:roomCode,yourId:client.id,roster:getRoster(),fillBots:r.fillBots});
-      this.broadcast(roomCode,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+      this.send(client,{type:'room_joined',room:roomCode,yourId:client.id,roster:this.roster(r),fillBots:r.fillBots});
       this.notifyLobby();
       this.roomState(roomCode);
     }else if(msg.type==='select_slot'&&client.room){const r=this.rooms.get(client.room),slot=Number(msg.slot);if(!r||r.phase!=='seats'||!Number.isInteger(slot)||slot<0||slot>4)return;if([...r.players].some(p=>p!==client&&p.slot===slot)){this.send(client,{type:'error',message:'该位置已有人'});return;}client.slot=slot;client.role=slot===4?'hunter':'survivor';client.character=slot===4?'ripper':'mercenary';r.bots=r.bots.filter(i=>i!==slot);this.roomState(client.room);
@@ -149,16 +153,13 @@ class WSServer {
       if(msg.nickname)client.nickname=String(msg.nickname).slice(0,10);
       if(r.phase==='seats'&&['hunter','survivor'].includes(msg.role)){const slot=msg.role==='hunter'?4:[0,1,2,3].find(i=>![...r.players].some(p=>p!==client&&p.slot===i));if(slot!==undefined){client.slot=slot;client.role=msg.role;}}
       if(msg.character){client.character=msg.character;client.ready=false;}
-      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
-      this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
       this.roomState(client.room);
     }else if(msg.type==='toggle_bots'&&client.room){
       const r=this.rooms.get(client.room);
       if(!r)return;
       if([...r.players][0]!==client||r.matchStarted)return;
       r.fillBots=!!msg.fillBots;
-      const getRoster=()=>Array.from(r.players).map(p=>({id:p.id,nickname:p.nickname,role:p.role,character:p.character,isHost:p===Array.from(r.players)[0]}));
-      this.broadcast(client.room,{type:'roster_update',roster:getRoster(),fillBots:r.fillBots});
+      this.roomState(client.room);
     }else if(msg.type==='start_match'&&client.room){
       const r=this.rooms.get(client.room);
       if(!r)return;

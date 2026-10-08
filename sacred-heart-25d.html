@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>第五人格 · 圣心医院 2.5D 高精细实战演练</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Noto+Serif+SC:wght@600;700&display=swap');
+:root{
+  --gold:#d8be7c;--gold-glow:#f7e3aa;--blood:#a62b2b;--paper:#e4dcce;--dark:#090d0c;
+  --border:#4a3f2c;--cipher-yellow:#f5c542;--cyan:#54a0ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#050908;color:var(--paper);font-family:'Noto Serif SC',serif;user-select:none}
+#canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+/* 顶部状态与层级提示 */
+.id5-top-bar{position:absolute;top:max(12px,env(safe-area-inset-top));left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+.brand-frame{background:linear-gradient(135deg,#1c1613ee,#0f1513f5);border:2px solid var(--border);border-image:linear-gradient(to bottom right,#8b7348,#3a2d1e) 1;padding:8px 16px;box-shadow:0 8px 30px #000c}
+.brand-title{margin:0;font-size:15px;font-weight:700;letter-spacing:.16em;color:var(--gold);font-family:'Cinzel','Noto Serif SC',serif;display:flex;align-items:center;gap:8px}
+.brand-title span{font-size:11px;color:#9b8c73;font-family:'Noto Serif SC',serif}
+.zone-ribbon{margin-top:4px;font-size:11px;color:#f0e4cb;background:#2d2116;border-left:3px solid var(--gold);padding:2px 8px;display:inline-block;letter-spacing:.08em}
+.floor-tag{display:inline-block;margin-left:8px;padding:2px 6px;background:#3d2f1f;border:1px solid var(--gold);color:var(--gold);font-size:10px;font-weight:700}
+
+/* 右上角圆形雷达 */
+.radar-box{position:relative;pointer-events:auto;background:radial-gradient(circle,#161e1b,#0a0f0d);border:2px solid #57462b;border-radius:50%;padding:4px;box-shadow:0 8px 30px #000c}
+#minimap{width:140px;height:140px;display:block;border-radius:50%;background:#0d1412}
+.radar-tag{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--gold);white-space:nowrap;letter-spacing:.05em}
+
+/* 底部状态提示条 */
+.id5-bottom-bar{position:absolute;bottom:max(14px,env(safe-area-inset-bottom));left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-end;pointer-events:none;z-index:10}
+.legend-scroll{background:#111614f0;border:1px solid #443722;padding:6px 12px;font-size:10px;line-height:1.7;color:#c9c0b1;pointer-events:auto;border-radius:4px;max-width:480px}
+.legend-scroll b{color:var(--gold);margin-right:6px}
+.legend-tag{display:inline-flex;align-items:center;margin-right:8px;white-space:nowrap}
+.legend-tag i{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+
+.prompt-card{background:linear-gradient(to top,#191310ee,#101614ee);border:1px solid #78603b;padding:8px 14px;font-size:11px;color:var(--gold-glow);pointer-events:auto;text-align:right}
+.prompt-card kbd{background:#2a1f16;border:1px solid #7a633b;padding:1px 5px;font-family:monospace;color:var(--gold);margin:0 2px}
+
+/* 手机轮盘与交互动作键 */
+.touch-controls{display:none;position:absolute;inset:0;pointer-events:none;z-index:20}
+#joystick{position:absolute;left:max(25px,env(safe-area-inset-left));bottom:max(25px,env(safe-area-inset-bottom));width:116px;height:116px;border-radius:50%;border:2px solid #635035;background:radial-gradient(circle,#1a262177,#0d1512aa);pointer-events:auto;touch-action:none}
+#joystick-knob{position:absolute;left:38px;top:38px;width:40px;height:40px;border-radius:50%;background:radial-gradient(circle,#c29f5b,#735422);border:2px solid #f3d79e;box-shadow:0 0 12px #d8be7c66}
+.action-cluster{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(25px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;pointer-events:auto}
+.btn-action{width:68px;height:68px;border-radius:50%;background:radial-gradient(circle,#281c15,#131a17);border:2px solid var(--gold);color:var(--gold);font-family:inherit;font-size:12px;font-weight:700;display:grid;place-items:center;box-shadow:0 6px 20px #000c;letter-spacing:.05em}
+.btn-action:active{transform:scale(.92);background:#422a18}
+
+@media(pointer:coarse){.touch-controls{display:block}.legend-scroll{max-width:270px;font-size:9px}}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<!-- Top HUD -->
+<header class="id5-top-bar">
+  <div class="brand-frame">
+    <div class="brand-title">SACRED HEART HOSPITAL <span>/ 圣心医院</span></div>
+    <div class="zone-ribbon" id="zoneTag">定位：中心八角主楼 (大厅)</div>
+    <div class="floor-tag" id="floorTag">1F 地表</div>
+    <div style="margin-top:6px;">
+      <select id="spawnSelector" style="background:#221810;color:var(--gold);border:1px solid var(--border);padding:2px 6px;font-size:10px;font-family:inherit;pointer-events:auto;cursor:pointer">
+        <option value="-1">传送至出生点演示</option>
+        <option value="0">求生1：无敌废墟 (3.6, 1.2)</option>
+        <option value="1">求生2：女神像废墟 (1.0, 5.0)</option>
+        <option value="2">求生3：小木屋 (7.8, 2.6)</option>
+        <option value="3">求生4：大门空地 (4.6, 7.8)</option>
+        <option value="4">监管者：主楼一层大厅 (4.4, 4.6)</option>
+      </select>
+    </div>
+  </div>
+  <div class="radar-box">
+    <canvas id="minimap" width="140" height="140"></canvas>
+    <div class="radar-tag">庄园回声雷达</div>
+  </div>
+</header>
+
+<!-- Bottom HUD -->
+<footer class="id5-bottom-bar">
+  <div class="legend-scroll">
+    <b>圣心医院设施:</b>
+    <span class="legend-tag"><i style="background:#4a90e2"></i>翻越石窗 (12扇)</span>
+    <span class="legend-tag"><i style="background:#3ebd6b"></i>门槽木板 (16块)</span>
+    <span class="legend-tag"><i style="background:#54a0ff"></i>2F楼梯/破洞</span>
+    <span class="legend-tag"><i style="background:#a75be4"></i>密道地窖 (3)</span>
+    <span class="legend-tag"><i style="background:#cc3e32"></i>庄园大门/小门 (2)</span>
+    <span class="legend-tag"><i style="background:#f5c542"></i>密码机 (5/7)</span>
+  </div>
+  <div class="prompt-card" id="promptText">
+    <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 走动 · <kbd>Shift</kbd> 疾跑</div>
+    <div style="margin-top:3px"><kbd>E</kbd> / <kbd>空格</kbd> 翻窗 · 放板/翻板 · 破译密码机</div>
+  </div>
+</footer>
+
+<!-- Mobile Touch Joystick -->
+<div class="touch-controls">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div class="action-cluster">
+    <button class="btn-action" id="btnInteract">交互/翻越</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+// =========================================================================
+// 1. 圣心医院 1:1 标准网格坐标与空间骨架 (X: 0~12, Y: 0~12)
+// 将网格坐标等比放大至 200 x 200 逻辑世界: Scale = 200 / 12 ≈ 16.6667
+// 网格坐标与世界坐标实时对应: WX = gx * (200/12), WY = gy * (200/12)
+// =========================================================================
+const MAP_SIZE = 200;
+const G2W = MAP_SIZE / 12; // 网格转换为实际世界坐标比例 (~16.6667)
+const toW = (gx, gy) => ({ x: gx * G2W, y: gy * G2W });
+
+// 9大核心区域包围盒 [Xmin, Xmax, Ymin, Ymax]
+const ZONES = [
+  { id:'wudi', name:'无敌废墟 (左上顶部)', box:[2.4*G2W, 5.6*G2W, 0.4*G2W, 3.0*G2W] },
+  { id:'statue', name:'女神像 (左中)', box:[0.2*G2W, 2.6*G2W, 2.4*G2W, 4.4*G2W] },
+  { id:'statue_ruin', name:'女神像废墟 (左下)', box:[0.2*G2W, 2.4*G2W, 4.2*G2W, 7.0*G2W] },
+  { id:'hospital', name:'中心八角主楼 (圣心医院本体)', box:[3.0*G2W, 6.4*G2W, 3.4*G2W, 6.6*G2W] },
+  { id:'shack', name:'小木屋 (右上)', box:[6.8*G2W, 9.2*G2W, 2.0*G2W, 4.0*G2W] },
+  { id:'front_ruin', name:'正门废墟 (右中部)', box:[7.6*G2W, 11.4*G2W, 3.8*G2W, 6.2*G2W] },
+  { id:'t_wall', name:'T墙区域 (右下)', box:[6.4*G2W, 11.6*G2W, 6.0*G2W, 9.0*G2W] },
+  { id:'south_gate', name:'大门区 (底部中间)', box:[3.4*G2W, 6.0*G2W, 8.4*G2W, 10.4*G2W] },
+  { id:'north_gate', name:'小门区 (右上角顶端)', box:[8.6*G2W, 11.6*G2W, 0.4*G2W, 2.4*G2W] }
+];
+
+// 两座庄园逃生大门
+const EXITS = [
+  { id:'north_gate', name:'逃生小门 (右上)', ...toW(10.2, 1.6), w:16, d:1.4, h:6.5, open:false },
+  { id:'south_gate', name:'逃生大门 (底中)', ...toW(4.6, 9.0), w:16, d:1.4, h:6.5, open:false }
+];
+
+// 三处地窖候选点 (3选1)
+const HATCHES = [
+  { id:'hatch_statue', name:'女神像废墟地窖', ...toW(1.4, 4.8), active:false },
+  { id:'hatch_front', name:'正门废墟地窖', ...toW(9.0, 4.6), active:true },
+  { id:'hatch_twall', name:'T墙地窖', ...toW(7.6, 7.4), active:false }
+];
+
+// 小木屋地下室 (入口地表楼梯位于 7.8, 2.8)
+const BASEMENT = {
+  id:'shack_basement',
+  name:'小木屋地下室',
+  stairs: toW(7.8, 2.8),
+  w: 2.0 * G2W,
+  d: 1.6 * G2W
+};
+
+// 预设出生点位列表
+const SPAWN_POINTS = [
+  { id:'survivor_1', name:'求生1：无敌废墟', ...toW(3.6, 1.2), role:'survivor' },
+  { id:'survivor_2', name:'求生2：女神像废墟', ...toW(1.0, 5.0), role:'survivor' },
+  { id:'survivor_3', name:'求生3：小木屋', ...toW(7.8, 2.6), role:'survivor' },
+  { id:'survivor_4', name:'求生4：大门空地', ...toW(4.6, 7.8), role:'survivor' },
+  { id:'hunter', name:'监管者：主楼一层大厅', ...toW(4.4, 4.6), role:'hunter' }
+];
+
+// 7个道具箱
+const CHESTS = [
+  { id:'c1', name:'无敌废墟箱A', ...toW(3.2, 1.4), opened:false },
+  { id:'c2', name:'无敌废墟箱B', ...toW(4.2, 2.4), opened:false },
+  { id:'c3', name:'女神像箱', ...toW(1.4, 3.2), opened:false },
+  { id:'c4', name:'中心主楼箱', ...toW(5.4, 5.0), opened:false },
+  { id:'c5', name:'大门空地箱', ...toW(5.2, 7.0), opened:false },
+  { id:'c6', name:'正门废墟箱', ...toW(9.4, 7.0), opened:false },
+  { id:'c7', name:'T墙箱', ...toW(9.2, 7.2), opened:false }
+];
+
+// 7台密码机候选点 (开局随机选5台激活)
+const CIPHERS = [
+  { id:'gen1', name:'主楼一层大厅', ...toW(4.4, 4.6), p:0, done:false },
+  { id:'gen2', name:'无敌废墟', ...toW(3.8, 1.8), p:0, done:false },
+  { id:'gen3', name:'女神像废墟', ...toW(1.2, 5.4), p:0, done:false },
+  { id:'gen4', name:'小木屋西侧室外', ...toW(7.4, 3.0), p:0, done:false },
+  { id:'gen5', name:'正门废墟', ...toW(8.8, 4.4), p:0, done:false },
+  { id:'gen6', name:'T墙区域', ...toW(7.8, 7.0), p:0, done:false },
+  { id:'gen7', name:'底部大门空地', ...toW(4.4, 8.2), p:0, done:false }
+];
+
+// 12扇窗户 (按网格点精准定位，区分1F双向窗与2F单向跳窗)
+const WINDOWS = [
+  { id:'w1', name:'无敌废墟窗1', ...toW(3.0, 2.0), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w2', name:'无敌废墟窗2', ...toW(5.0, 1.8), w:0.8, d:3.6, h:2.4, dir:'y', floor:1 },
+  { id:'w3', name:'女神像废墟窗1', ...toW(0.6, 4.6), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w4', name:'女神像废墟窗2', ...toW(1.2, 5.6), w:0.8, d:3.6, h:2.4, dir:'y', floor:1 },
+  { id:'w5', name:'中心主楼北窗 (2F跳下)', ...toW(4.6, 3.8), w:3.6, d:0.8, h:2.4, dir:'x', floor:2, dropOutside:true },
+  { id:'w6', name:'中心主楼南窗 (鸟笼)', ...toW(4.4, 5.8), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w7', name:'小木屋窗', ...toW(7.4, 3.0), w:0.8, d:3.6, h:2.4, dir:'y', floor:1 },
+  { id:'w8', name:'女神像外侧窗', ...toW(1.6, 4.2), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w9', name:'左下废墟窗', ...toW(2.8, 6.4), w:0.8, d:3.6, h:2.4, dir:'y', floor:1 },
+  { id:'w10', name:'底部空地窗', ...toW(2.6, 7.0), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w11', name:'右下长窗', ...toW(5.8, 6.2), w:3.6, d:0.8, h:2.4, dir:'x', floor:1 },
+  { id:'w12', name:'T墙区域窗', ...toW(8.4, 7.2), w:0.8, d:3.6, h:2.4, dir:'y', floor:1 }
+];
+
+// 16块木板 (带双木立柱，防卡模矩形碰撞)
+const PALLETS = [
+  { id:'p1', name:'无敌废墟板1', ...toW(3.6, 2.2), down:false, dir:'x' },
+  { id:'p2', name:'无敌废墟板2', ...toW(4.4, 2.6), down:false, dir:'y' },
+  { id:'p3', name:'女神像板1', ...toW(1.0, 3.0), down:false, dir:'y' },
+  { id:'p4', name:'女神像板2', ...toW(0.8, 3.6), down:false, dir:'x' },
+  { id:'p5', name:'女神像废墟板1', ...toW(1.0, 5.2), down:false, dir:'x' },
+  { id:'p6', name:'女神像废墟板2', ...toW(1.4, 6.0), down:false, dir:'y' },
+  { id:'p7', name:'主楼外弧形板1', ...toW(3.2, 4.0), down:false, dir:'y' },
+  { id:'p8', name:'主楼外弧形板2', ...toW(5.6, 4.0), down:false, dir:'y' },
+  { id:'p9', name:'小木屋板', ...toW(7.6, 2.4), down:false, dir:'x' },
+  { id:'p10', name:'正门废墟板1', ...toW(8.2, 4.2), down:false, dir:'x' },
+  { id:'p11', name:'正门废墟板2', ...toW(9.4, 4.0), down:false, dir:'y' },
+  { id:'p12', name:'T墙板1', ...toW(7.0, 6.4), down:false, dir:'y' },
+  { id:'p13', name:'T墙板2', ...toW(7.6, 6.8), down:false, dir:'x' },
+  { id:'p14', name:'大门上方板1', ...toW(4.0, 7.6), down:false, dir:'x' },
+  { id:'p15', name:'大门上方板2', ...toW(4.8, 7.6), down:false, dir:'y' },
+  { id:'p16', name:'左外残墙板', ...toW(0.8, 4.0), down:false, dir:'x' }
+];
+
+// 2F 垂直连通、楼梯与破洞
+const STAIRS = {
+  ...toW(3.4, 4.8),
+  w: 1.0 * G2W,
+  d: 1.4 * G2W,
+  topZ: 4.2,
+  bottomZ: 0
+};
+
+const HOLE_2F = {
+  ...toW(5.6, 5.4),
+  w: 1.2 * G2W,
+  d: 1.2 * G2W,
+  landing: toW(5.4, 5.6)
+};
+
+// 严密对接且纤薄化（0.7~0.85）的墙体，杜绝死板厚墙与错缝
+const WALLS = [
+  // 1. 地图四周边境石墙 (西北微凹)
+  { x:100, y:1, w:198, d:0.9, h:5, style:'outer' },
+  { x:100, y:199, w:198, d:0.9, h:5, style:'outer' },
+  { x:199, y:100, w:0.9, d:198, h:5, style:'outer' },
+  { x:1, y:134, w:0.9, d:130, h:5, style:'outer' },
+  { x:1, y:34, w:0.9, d:66, h:5, style:'outer' },
+
+  // 2. 小木屋 (7.0~9.0, 2.0~4.0)
+  { ...toW(8.0, 2.0), w:2.2*G2W, d:0.75, h:5.2, style:'wood_cottage' }, // 北墙
+  { ...toW(6.9, 3.0), w:0.75, d:2.0*G2W, h:5.2, style:'wood_cottage' }, // 西墙(留窗)
+  { ...toW(9.1, 3.0), w:0.75, d:2.0*G2W, h:5.2, style:'wood_cottage' }, // 东墙
+  { ...toW(8.5, 4.0), w:1.2*G2W, d:0.75, h:5.2, style:'wood_cottage' }, // 南墙(留门)
+
+  // 3. 中心八角主楼 (3.0~6.4, 3.4~6.6)
+  // 八角外围高耸墙面（高9米，门廊无缝对接）
+  { ...toW(4.7, 3.4), w:2.0*G2W, d:0.85, h:9, style:'hospital_wall' }, // 北段外墙
+  { ...toW(3.5, 3.9), w:1.4*G2W, d:0.85, h:9, style:'hospital_wall', rot:0.78 }, // 西北斜切
+  { ...toW(5.9, 3.9), w:1.4*G2W, d:0.85, h:9, style:'hospital_wall', rot:-0.78 }, // 东北斜切
+  { ...toW(3.0, 5.0), w:0.85, d:1.6*G2W, h:9, style:'hospital_wall' }, // 正西外墙
+  { ...toW(6.4, 5.0), w:0.85, d:1.6*G2W, h:9, style:'hospital_wall' }, // 正东外墙
+  { ...toW(3.5, 6.1), w:1.4*G2W, d:0.85, h:9, style:'hospital_wall', rot:-0.78 }, // 西南斜切
+  { ...toW(5.9, 6.1), w:1.4*G2W, d:0.85, h:9, style:'hospital_wall', rot:0.78 }, // 东南斜切
+  { ...toW(4.7, 6.6), w:2.0*G2W, d:0.85, h:9, style:'hospital_wall' }, // 南段外墙
+
+  // 八角主楼一楼四大隔间（门洞朝向大厅中央向内开启）
+  // 西北隔间：画室
+  { ...toW(4.0, 4.2), w:1.4*G2W, d:0.7, h:4, style:'interior_wall' },
+  { ...toW(4.2, 3.9), w:0.7, d:1.0*G2W, h:4, style:'interior_wall' },
+
+  // 西南隔间：厕所
+  { ...toW(4.0, 5.8), w:1.4*G2W, d:0.7, h:4, style:'interior_wall' },
+  { ...toW(4.2, 6.1), w:0.7, d:1.0*G2W, h:4, style:'interior_wall' },
+
+  // 东北隔间：诊室
+  { ...toW(5.4, 4.2), w:1.4*G2W, d:0.7, h:4, style:'interior_wall' },
+  { ...toW(5.2, 3.9), w:0.7, d:1.0*G2W, h:4, style:'interior_wall' },
+
+  // 东南隔间：鸟笼 (外侧接南窗)
+  { ...toW(5.4, 5.8), w:1.4*G2W, d:0.7, h:4, style:'interior_wall' },
+  { ...toW(5.2, 6.1), w:0.7, d:1.0*G2W, h:4, style:'interior_wall' },
+
+  // 鸟笼特殊金属围栏实体障碍 [4.6, 5.4, 5.4, 6.4]
+  { x: ((4.6 + 5.4) / 2) * G2W, y: ((5.4 + 6.4) / 2) * G2W, w: (5.4 - 4.6) * G2W, d: (6.4 - 5.4) * G2W, h: 3.2, style:'birdcage_fence' },
+
+  // 4. 无敌废墟 (2.4~5.6, 0.4~3.0) 经典双L高矮废墟长墙
+  { ...toW(3.0, 1.2), w:0.75, d:1.4*G2W, h:3.4, style:'ruin' },
+  { ...toW(4.0, 1.2), w:1.8*G2W, d:0.75, h:3.4, style:'ruin' },
+  { ...toW(5.0, 2.4), w:0.75, d:1.2*G2W, h:3.4, style:'ruin' },
+  { ...toW(4.2, 2.8), w:1.6*G2W, d:0.75, h:3.4, style:'ruin' },
+
+  // 5. 女神像废墟 (0.2~2.4, 4.2~7.0)
+  { ...toW(1.0, 4.8), w:1.6*G2W, d:0.75, h:3.2, style:'ruin' },
+  { ...toW(1.8, 5.6), w:0.75, d:1.6*G2W, h:3.2, style:'ruin' },
+  { ...toW(1.2, 6.4), w:1.8*G2W, d:0.75, h:3.2, style:'ruin' },
+
+  // 6. 正门废墟 (7.6~11.4, 3.8~6.2)
+  { ...toW(8.6, 4.8), w:1.8*G2W, d:0.75, h:3.4, style:'ruin' },
+  { ...toW(9.8, 4.4), w:0.75, d:1.2*G2W, h:3.4, style:'ruin' },
+  { ...toW(10.4, 5.4), w:1.6*G2W, d:0.75, h:3.4, style:'ruin' },
+
+  // 7. T墙区域 (6.4~11.6, 6.0~9.0) 标志性T字直横交错博弈长墙
+  { ...toW(8.4, 6.6), w:2.2*G2W, d:0.75, h:3.4, style:'ruin' },
+  { ...toW(8.4, 7.6), w:0.75, d:2.0*G2W, h:3.4, style:'ruin' },
+  { ...toW(10.0, 7.2), w:1.8*G2W, d:0.75, h:3.4, style:'ruin' },
+  { ...toW(7.2, 8.2), w:1.6*G2W, d:0.75, h:3.4, style:'ruin' },
+
+  // 8. 底部大门上方与空地矮石墙
+  { ...toW(3.6, 7.6), w:1.4*G2W, d:0.75, h:2.8, style:'ruin' },
+  { ...toW(5.4, 7.6), w:1.6*G2W, d:0.75, h:2.8, style:'ruin' }
+];
+
+// 女神像本体 (大理石雕塑，位于 1.4, 3.4)
+const GODDESS_STATUE = {
+  ...toW(1.4, 3.4),
+  w: 2.0, d: 2.0, h: 4.8
+};
+
+// =========================================================================
+// 2. 玩家状态机与防穿模精准滑动系统
+// =========================================================================
+const player = {
+  x: toW(4.8, 4.8).x,
+  y: toW(4.8, 4.8).y,
+  z: 0,
+  speed: 16.5,
+  angle: 0,
+  vaulting: null,
+  falling: null,
+  decoding: null,
+  walkTimer: 0,
+  floor: 1
+};
+
+function isBlocked(x, y, z = 0, r = 0.92, ignorePallet = null) {
+  if (x < 1.5 || x > MAP_SIZE - 1.5 || y < 1.5 || y > MAP_SIZE - 1.5) return true;
+
+  // 女神像本体
+  if (Math.abs(x - GODDESS_STATUE.x) < GODDESS_STATUE.w / 2 + r && Math.abs(y - GODDESS_STATUE.y) < GODDESS_STATUE.d / 2 + r) return true;
+
+  // 墙体碰撞 (二层不阻挡一层专属内隔墙)
+  for (const w of WALLS) {
+    if (z > 2.0 && w.style === 'interior_wall') continue;
+    const wWidth = w.w || 0.75, wDepth = w.d || 0.75;
+    if (Math.abs(x - w.x) < wWidth / 2 + r && Math.abs(y - w.y) < wDepth / 2 + r) return true;
+  }
+
+  // 木板长方形定向碰撞 (仅一层有效，放倒后阻挡)
+  if (z < 2.0) {
+    for (const p of PALLETS) {
+      if (p !== ignorePallet && p.down) {
+        const pw = (p.dir === 'x') ? 3.4 : 0.8;
+        const pd = (p.dir === 'x') ? 0.8 : 3.4;
+        if (Math.abs(x - p.x) < pw / 2 + r && Math.abs(y - p.y) < pd / 2 + r) return true;
+      }
+    }
+  }
+
+  // 二楼环廊内圈边缘防滑落栏杆
+  if (z > 2.0) {
+    const center = toW(4.7, 5.0);
+    const distToCenter = Math.hypot(x - center.x, y - center.y);
+    const isNearHole = Math.hypot(x - HOLE_2F.x, y - HOLE_2F.y) < 3.2;
+    if (distToCenter < 1.0 * G2W && !isNearHole) return true;
+  }
+
+  return false;
+}
+
+function resolveMove(p, dx, dy) {
+  const steps = 6;
+  for (let i = 0; i < steps; i++) {
+    const nx = p.x + dx / steps;
+    if (!isBlocked(nx, p.y, p.z)) p.x = nx;
+    const ny = p.y + dy / steps;
+    if (!isBlocked(p.x, ny, p.z)) p.y = ny;
+  }
+
+  // 楼梯平滑过渡
+  if (Math.abs(p.x - STAIRS.x) < STAIRS.w / 2 && Math.abs(p.y - STAIRS.y) < STAIRS.d / 2) {
+    const factor = (p.y - (STAIRS.y - STAIRS.d / 2)) / STAIRS.d;
+    p.z = Math.max(0, Math.min(STAIRS.topZ, factor * STAIRS.topZ));
+    p.floor = p.z > 2.0 ? 2 : 1;
+  }
+
+  // 二楼东南破洞单向坠落检测
+  if (p.z > 2.0 && !p.falling && !p.vaulting) {
+    if (Math.hypot(p.x - HOLE_2F.x, p.y - HOLE_2F.y) < 2.6) {
+      triggerDropTo1F(HOLE_2F.landing.x, HOLE_2F.landing.y);
+    }
+  }
+}
+
+function triggerDropTo1F(targetX, targetY) {
+  player.falling = {
+    startX: player.x, startY: player.y, startZ: player.z,
+    toX: targetX, toY: targetY, toZ: 0,
+    t: 0
+  };
+}
+
+// =========================================================================
+// 3. 2.5D Isometric 核心投影与高精细写实渲染
+// =========================================================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = window.innerWidth, H = window.innerHeight;
+let viewScale = 18;
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  viewScale = Math.min(W / 44, H / 34);
+  if (viewScale < 13.5) viewScale = 13.5;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function toIso(wx, wy, wz = 0) {
+  const dx = wx - player.x;
+  const dy = wy - player.y;
+  const camZ = player.z * 0.65;
+  const sx = (dx - dy) * 0.7071 * viewScale + W / 2;
+  const sy = (dx + dy) * 0.36 * viewScale - (wz - camZ) * viewScale + H * 0.58;
+  return { x: sx, y: sy };
+}
+
+function drawIsoPrism(x, y, w, d, h, colors, baseZ = 0) {
+  const hw = w / 2, hd = d / 2;
+  const p0 = toIso(x - hw, y - hd, baseZ);
+  const p1 = toIso(x + hw, y - hd, baseZ);
+  const p2 = toIso(x + hw, y + hd, baseZ);
+  const p3 = toIso(x - hw, y + hd, baseZ);
+
+  const t0 = toIso(x - hw, y - hd, baseZ + h);
+  const t1 = toIso(x + hw, y - hd, baseZ + h);
+  const t2 = toIso(x + hw, y + hd, baseZ + h);
+  const t3 = toIso(x - hw, y + hd, baseZ + h);
+
+  ctx.fillStyle = colors.top;
+  ctx.beginPath();
+  ctx.moveTo(t0.x, t0.y); ctx.lineTo(t1.x, t1.y);
+  ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#1b140f'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  ctx.fillStyle = colors.left;
+  ctx.beginPath();
+  ctx.moveTo(p3.x, p3.y); ctx.lineTo(p2.x, p2.y);
+  ctx.lineTo(t2.x, t2.y); ctx.lineTo(t3.x, t3.y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  ctx.fillStyle = colors.right;
+  ctx.beginPath();
+  ctx.moveTo(p2.x, p2.y); ctx.lineTo(p1.x, p1.y);
+  ctx.lineTo(t1.x, t1.y); ctx.lineTo(t2.x, t2.y);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+function drawRealPallet(p) {
+  const isHoriz = p.dir === 'x';
+  const postH = 2.6;
+  const offX = isHoriz ? 1.6 : 0;
+  const offY = isHoriz ? 0 : 1.6;
+
+  drawIsoPrism(p.x - offX, p.y - offY, 0.45, 0.45, postH, { top:'#4d3621', left:'#362414', right:'#20140a' });
+  drawIsoPrism(p.x + offX, p.y + offY, 0.45, 0.45, postH, { top:'#4d3621', left:'#362414', right:'#20140a' });
+
+  if (!p.down) {
+    const baseP = toIso(p.x - offX * 0.4, p.y - offY * 0.4, 0);
+    const topP = toIso(p.x + offX * 0.6, p.y + offY * 0.6, postH * 0.85);
+
+    ctx.fillStyle = '#7a512c';
+    ctx.strokeStyle = '#2d1b0e';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(baseP.x - 3, baseP.y);
+    ctx.lineTo(baseP.x + 3, baseP.y);
+    ctx.lineTo(topP.x + 3, topP.y);
+    ctx.lineTo(topP.x - 3, topP.y);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  } else {
+    const pw = isHoriz ? 3.4 : 0.8;
+    const pd = isHoriz ? 0.8 : 3.4;
+    drawIsoPrism(p.x, p.y, pw, pd, 0.32, { top:'#5a3a1f', left:'#3d2513', right:'#231409' });
+  }
+}
+
+// =========================================================================
+// 4. 输入交互管理
+// =========================================================================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if ([' ', 'e', 'enter'].includes(e.key.toLowerCase())) handleAction();
+});
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+function handleAction() {
+  if (player.vaulting || player.falling) return;
+
+  // 1. 翻窗交互 (含2F北窗下坠与1F常规窗)
+  for (const w of WINDOWS) {
+    if (Math.abs(player.z - (w.floor === 2 ? 4.2 : 0)) > 2.0) continue;
+
+    if (Math.hypot(player.x - w.x, player.y - w.y) < 3.8) {
+      player.decoding = null;
+      if (w.dropOutside) {
+        startWindowDrop(w.x, w.y);
+      } else {
+        startVault(w.x, w.y, w.dir);
+      }
+      return;
+    }
+  }
+
+  // 2. 木板交互 (限一层)
+  if (player.z < 2.0) {
+    for (const p of PALLETS) {
+      if (Math.hypot(player.x - p.x, player.y - p.y) < 3.8) {
+        player.decoding = null;
+        if (!p.down) p.down = true;
+        else startVault(p.x, p.y, p.dir, p);
+        return;
+      }
+    }
+  }
+
+  // 3. 密码机破译
+  for (const c of CIPHERS) {
+    if (Math.hypot(player.x - c.x, player.y - c.y) < 4.5 && !c.done) {
+      player.decoding = (player.decoding === c) ? null : c;
+      return;
+    }
+  }
+
+  // 4. 翻箱子
+  for (const c of CHESTS) {
+    if (!c.opened && Math.hypot(player.x - c.x, player.y - c.y) < 3.6) {
+      c.opened = true;
+      return;
+    }
+  }
+}
+
+function startVault(tx, ty, dir, palletObj = null) {
+  const fromX = player.x, fromY = player.y;
+  let toX = tx, toY = ty;
+  const crossOffset = 2.8;
+
+  if (dir === 'y') {
+    const sign = fromX < tx ? 1 : -1;
+    toX = tx + sign * crossOffset;
+    toY = ty;
+  } else {
+    const sign = fromY < ty ? 1 : -1;
+    toX = tx;
+    toY = ty + sign * crossOffset;
+  }
+
+  // 智能寻找安全落点，防卡模
+  if (isBlocked(toX, toY, player.z, 0.8, palletObj)) {
+    for (const d of [0.5, -0.5, 1.0, -1.0]) {
+      const altX = (dir === 'y') ? toX : toX + d;
+      const altY = (dir === 'y') ? toY + d : toY;
+      if (!isBlocked(altX, altY, player.z, 0.8, palletObj)) {
+        toX = altX; toY = altY;
+        break;
+      }
+    }
+  }
+
+  player.vaulting = { fromX, fromY, toX, toY, t: 0 };
+}
+
+function startWindowDrop(tx, ty) {
+  player.falling = {
+    startX: player.x, startY: player.y, startZ: player.z,
+    toX: tx, toY: ty - 3.2, toZ: 0,
+    t: 0
+  };
+}
+
+// 虚拟摇杆
+const joystick = document.getElementById('joystick');
+const knob = document.getElementById('joystick-knob');
+let touchId = null, touchDir = { x: 0, y: 0 };
+
+joystick.addEventListener('pointerdown', e => {
+  touchId = e.pointerId;
+  joystick.setPointerCapture(e.pointerId);
+  calcStick(e);
+});
+joystick.addEventListener('pointermove', e => {
+  if (touchId === e.pointerId) calcStick(e);
+});
+const endTouch = () => {
+  touchId = null;
+  touchDir = { x: 0, y: 0 };
+  knob.style.transform = 'translate(0,0)';
+};
+joystick.addEventListener('pointerup', endTouch);
+joystick.addEventListener('pointercancel', endTouch);
+
+function calcStick(e) {
+  const r = joystick.getBoundingClientRect();
+  let dx = e.clientX - (r.left + r.width / 2);
+  let dy = e.clientY - (r.top + r.height / 2);
+  const len = Math.hypot(dx, dy), max = 38;
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`;
+  touchDir = { x: dx / max, y: dy / max };
+}
+
+document.getElementById('btnInteract').onclick = handleAction;
+
+// 出生点快捷传送
+document.getElementById('spawnSelector').onchange = (e) => {
+  const idx = parseInt(e.target.value);
+  if (idx >= 0 && idx < SPAWN_POINTS.length) {
+    const sp = SPAWN_POINTS[idx];
+    player.x = sp.x;
+    player.y = sp.y;
+    player.z = 0;
+    player.floor = 1;
+    player.vaulting = null;
+    player.falling = null;
+    player.decoding = null;
+  }
+};
+
+// =========================================================================
+// 5. 渲染循环 (八角双层医院 + 真实光影与细节模型)
+// =========================================================================
+let lastFrameTime = performance.now();
+
+function frame(now) {
+  const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
+  lastFrameTime = now;
+  player.walkTimer += dt;
+
+  // 1. 移动与动作计算
+  if (player.falling) {
+    player.falling.t += dt / 0.75;
+    const t = Math.min(1, player.falling.t);
+    player.x = player.falling.startX + (player.falling.toX - player.falling.startX) * t;
+    player.y = player.falling.startY + (player.falling.toY - player.falling.startY) * t;
+    player.z = player.falling.startZ + (player.falling.toZ - player.falling.startZ) * (t * t);
+    if (t >= 1) {
+      player.x = player.falling.toX;
+      player.y = player.falling.toY;
+      player.z = 0;
+      player.floor = 1;
+      player.falling = null;
+    }
+  } else if (player.vaulting) {
+    player.vaulting.t += dt / 0.88;
+    const t = Math.min(1, player.vaulting.t);
+    const ease = t * t * (3 - 2 * t);
+    player.x = player.vaulting.fromX + (player.vaulting.toX - player.vaulting.fromX) * ease;
+    player.y = player.vaulting.fromY + (player.vaulting.toY - player.vaulting.fromY) * ease;
+    if (t >= 1) {
+      player.x = player.vaulting.toX;
+      player.y = player.vaulting.toY;
+      player.vaulting = null;
+    }
+  } else if (player.decoding) {
+    player.decoding.p = Math.min(100, player.decoding.p + dt * 14);
+    if (player.decoding.p >= 100) {
+      player.decoding.done = true;
+      player.decoding = null;
+    }
+  } else {
+    let mx = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0) + touchDir.x;
+    let my = (keys['s'] || keys['arrowdown'] ? 1 : 0) - (keys['w'] || keys['arrowup'] ? 1 : 0) + touchDir.y;
+    const len = Math.hypot(mx, my);
+    if (len > 0.05) {
+      const spd = (keys['shift'] ? 24 : 16.5);
+      const nx = mx / (len > 1 ? len : 1) * spd * dt;
+      const ny = my / (len > 1 ? len : 1) * spd * dt;
+      resolveMove(player, nx, ny);
+      player.angle = Math.atan2(nx, ny);
+    }
+  }
+
+  // 2. 清屏与阴暗荒芜地表网格
+  ctx.fillStyle = '#060a09';
+  ctx.fillRect(0, 0, W, H);
+
+  // 区域地表网格
+  for (const z of ZONES) {
+    const p0 = toIso(z.box[0], z.box[1], 0);
+    const p1 = toIso(z.box[1], z.box[1], 0);
+    const p2 = toIso(z.box[1], z.box[3], 0);
+    const p3 = toIso(z.box[0], z.box[3], 0);
+    ctx.fillStyle = (z.id === 'hospital') ? '#1a221f' : '#111715';
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#18201d'; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // 3. 八角主楼一层大厅地坪与二层环形回廊
+  const hCenter = toW(4.7, 5.0);
+  const octPts = [];
+  for (let i = 0; i < 8; i++) {
+    const ang = (i * Math.PI / 4) + Math.PI / 8;
+    const px = hCenter.x + Math.cos(ang) * (1.7 * G2W);
+    const py = hCenter.y + Math.sin(ang) * (1.7 * G2W);
+    octPts.push(toIso(px, py, 0));
+  }
+  ctx.fillStyle = '#202925';
+  ctx.beginPath();
+  octPts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#2d3b35'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // 二层环形回廊 (z = 4.2)
+  const oct2FPts = [];
+  for (let i = 0; i < 8; i++) {
+    const ang = (i * Math.PI / 4) + Math.PI / 8;
+    const px = hCenter.x + Math.cos(ang) * (1.68 * G2W);
+    const py = hCenter.y + Math.sin(ang) * (1.68 * G2W);
+    oct2FPts.push(toIso(px, py, 4.2));
+  }
+  ctx.fillStyle = player.z > 2.0 ? '#2a3730dd' : '#20292566';
+  ctx.beginPath();
+  oct2FPts.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#3d4f46'; ctx.lineWidth = 1; ctx.stroke();
+
+  // 二层东南破洞缺口 (5.6, 5.4)
+  const hp = toIso(HOLE_2F.x, HOLE_2F.y, 4.2);
+  ctx.fillStyle = '#020404';
+  ctx.beginPath();
+  ctx.arc(hp.x, hp.y, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#d8be7c'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // 西侧上下楼梯踏步 (3.4, 4.8)
+  for (let st = 0; st < 6; st++) {
+    const sy = STAIRS.y - STAIRS.d / 2 + st * (STAIRS.d / 6);
+    const sz = st * (STAIRS.topZ / 6);
+    const sp0 = toIso(STAIRS.x - STAIRS.w / 2, sy, sz);
+    const sp1 = toIso(STAIRS.x + STAIRS.w / 2, sy, sz);
+    ctx.strokeStyle = '#5a422a'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sp0.x, sp0.y); ctx.lineTo(sp1.x, sp1.y); ctx.stroke();
+  }
+
+  // 小木屋地下室入口
+  const b0 = toIso(BASEMENT.stairs.x - 2, BASEMENT.stairs.y - 2, 0.05);
+  const b1 = toIso(BASEMENT.stairs.x + 2, BASEMENT.stairs.y + 2, 0.05);
+  ctx.fillStyle = '#010303';
+  ctx.fillRect(Math.min(b0.x, b1.x), Math.min(b0.y, b1.y), Math.abs(b1.x - b0.x), Math.abs(b1.y - b0.y));
+
+  // =========================================================================
+  // 6. 物件深度排序渲染 (严格排序，纤薄实体模型)
+  // =========================================================================
+  const drawables = [];
+
+  for (const w of WALLS) drawables.push({ d: w.x + w.y, type:'wall', obj:w });
+  for (const win of WINDOWS) drawables.push({ d: win.x + win.y, type:'window', obj:win });
+  for (const p of PALLETS) drawables.push({ d: p.x + p.y, type:'pallet', obj:p });
+  for (const h of HATCHES) drawables.push({ d: h.x + h.y, type:'hatch', obj:h });
+  for (const g of EXITS) drawables.push({ d: g.x + g.y, type:'gate', obj:g });
+  for (const c of CIPHERS) drawables.push({ d: c.x + c.y, type:'cipher', obj:c });
+  for (const box of CHESTS) drawables.push({ d: box.x + box.y, type:'chest', obj:box });
+  drawables.push({ d: GODDESS_STATUE.x + GODDESS_STATUE.y, type:'statue', obj:GODDESS_STATUE });
+  drawables.push({ d: player.x + player.y, type:'player' });
+
+  drawables.sort((a, b) => a.d - b.d);
+
+  for (const item of drawables) {
+    switch (item.type) {
+      case 'wall': {
+        const w = item.obj;
+        const dist = Math.hypot(player.x - w.x, player.y - w.y);
+        ctx.globalAlpha = (dist < 7.5 && player.y < w.y) ? 0.35 : 1;
+
+        if (w.style === 'hospital_wall') {
+          drawIsoPrism(w.x, w.y, w.w||0.85, w.d||0.85, w.h, { top:'#65736b', left:'#3c4b44', right:'#26332d' });
+        } else if (w.style === 'interior_wall') {
+          drawIsoPrism(w.x, w.y, w.w||0.7, w.d||0.7, w.h, { top:'#5a6962', left:'#38453f', right:'#232e29' });
+        } else if (w.style === 'birdcage_fence') {
+          drawIsoPrism(w.x, w.y, w.w, w.d, w.h, { top:'#3a403d', left:'#222624', right:'#141715' });
+        } else if (w.style === 'wood_cottage') {
+          drawIsoPrism(w.x, w.y, w.w||0.75, w.d||0.75, w.h, { top:'#634b35', left:'#443120', right:'#2a1e13' });
+        } else {
+          drawIsoPrism(w.x, w.y, w.w||0.75, w.d||0.75, w.h, { top:'#4a574f', left:'#313c36', right:'#1e2621' });
+        }
+        ctx.globalAlpha = 1;
+        break;
+      }
+
+      case 'window': {
+        const win = item.obj;
+        const bZ = win.floor === 2 ? 4.2 : 0;
+        drawIsoPrism(win.x, win.y, win.w, win.d, win.h, { top:'#3a4f5e', left:'#24343f', right:'#172228' }, bZ);
+        const p = toIso(win.x, win.y, bZ + win.h * 0.52);
+        ctx.strokeStyle = win.floor === 2 ? '#54a0ff' : '#6e4c2e'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(p.x - 7, p.y); ctx.lineTo(p.x + 7, p.y); ctx.stroke();
+        break;
+      }
+
+      case 'pallet': {
+        drawRealPallet(item.obj);
+        break;
+      }
+
+      case 'statue': {
+        const s = item.obj;
+        drawIsoPrism(s.x, s.y, s.w, s.d, 1.2, { top:'#94a298', left:'#66756a', right:'#48554c' });
+        drawIsoPrism(s.x, s.y, 1.2, 1.2, s.h - 1.2, { top:'#b5c2b9', left:'#829286', right:'#5c6a60' }, 1.2);
+        break;
+      }
+
+      case 'cipher': {
+        const c = item.obj;
+        drawIsoPrism(c.x, c.y, 2.8, 2.2, 1.6, { top:'#313e39', left:'#222c28', right:'#141b18' });
+        const poleBase = toIso(c.x - 1.1, c.y - 0.7, 0);
+        const poleTop = toIso(c.x - 1.1, c.y - 0.7, 7.5);
+        ctx.strokeStyle = '#3d2b1b'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(poleBase.x, poleBase.y); ctx.lineTo(poleTop.x, poleTop.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(poleTop.x - 7, poleTop.y); ctx.lineTo(poleTop.x + 7, poleTop.y); ctx.stroke();
+        ctx.fillStyle = c.done ? '#45e060' : '#ffbf00';
+        ctx.shadowColor = c.done ? '#45e060' : '#ffbf00';
+        ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(poleTop.x, poleTop.y - 2, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        break;
+      }
+
+      case 'hatch': {
+        const h = item.obj;
+        drawIsoPrism(h.x, h.y, 3.2, 3.2, 0.3, { top:'#2b2733', left:'#1c1921', right:'#110f14' });
+        const p = toIso(h.x, h.y, 0.35);
+        ctx.strokeStyle = '#75548d'; ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+
+      case 'gate': {
+        const g = item.obj;
+        drawIsoPrism(g.x, g.y, g.w, g.d, g.h, { top:'#252020', left:'#1a1515', right:'#100d0d' });
+        break;
+      }
+
+      case 'chest': {
+        const box = item.obj;
+        drawIsoPrism(box.x, box.y, 1.6, 1.5, 1.2, { top: box.opened ? '#362a20' : '#634730', left:'#3d2a1b', right:'#24180e' });
+        break;
+      }
+
+      case 'player': {
+        // 写实真人比例模型 (随Z轴自适应高度)
+        const curZ = player.z;
+        const vaultLift = player.vaulting ? Math.sin(player.vaulting.t * Math.PI) * 1.2 : 0;
+        const base = toIso(player.x, player.y, curZ + vaultLift);
+
+        ctx.fillStyle = '#00000088';
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y + (vaultLift + curZ * 0.2) * 8, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 躯干皮衣
+        drawIsoPrism(player.x, player.y, 1.0, 1.0, 1.9 + vaultLift, { top:'#364b3b', left:'#233427', right:'#152218' }, curZ);
+
+        // 头部
+        const head = toIso(player.x, player.y, curZ + 2.35 + vaultLift);
+        ctx.fillStyle = '#d4c5b0';
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 0.8; ctx.stroke();
+
+        // 真实双眼瞳孔
+        for (const side of [-2.4, 2.4]) {
+          ctx.fillStyle = '#f2f2ee';
+          ctx.beginPath(); ctx.arc(head.x + side, head.y - 0.5, 2.0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#3a2618';
+          ctx.beginPath(); ctx.arc(head.x + side, head.y - 0.5, 1.1, 0, Math.PI * 2); ctx.fill();
+        }
+
+        if (player.falling) {
+          ctx.fillStyle = '#ff7675'; ctx.font = 'bold 9px monospace';
+          ctx.fillText('坠落中...', head.x - 16, head.y - 14);
+        } else if (player.vaulting) {
+          ctx.fillStyle = '#d8be7c'; ctx.font = 'bold 9px monospace';
+          ctx.fillText('翻越中...', head.x - 16, head.y - 14);
+        } else if (player.decoding) {
+          ctx.fillStyle = '#f5c542'; ctx.font = 'bold 9px monospace';
+          ctx.fillText(`破译中 ${Math.floor(player.decoding.p)}%`, head.x - 20, head.y - 14);
+        }
+        break;
+      }
+    }
+  }
+
+  // 7. 区域与楼层定位
+  let currentZoneName = '圣心庄园外围';
+  for (const z of ZONES) {
+    if (player.x >= z.box[0] && player.x <= z.box[1] && player.y >= z.box[2] && player.y <= z.box[3]) {
+      currentZoneName = z.name;
+      break;
+    }
+  }
+  document.getElementById('zoneTag').textContent = '定位：' + currentZoneName;
+  document.getElementById('floorTag').textContent = player.z > 2.0 ? '2F 回廊' : '1F 地表';
+  document.getElementById('floorTag').style.background = player.z > 2.0 ? '#1b4f72' : '#3d2f1f';
+
+  // 8. 绘制右上角圆形雷达
+  renderRadar();
+
+  requestAnimationFrame(frame);
+}
+
+// 圆形雷达绘制
+const minimap = document.getElementById('minimap');
+const mCtx = minimap.getContext('2d');
+
+function renderRadar() {
+  mCtx.clearRect(0, 0, 140, 140);
+  const s = 140 / MAP_SIZE;
+
+  // 建筑外墙
+  mCtx.fillStyle = '#36433b';
+  for (const w of WALLS) {
+    mCtx.fillRect((w.x - (w.w||0.75) / 2) * s, (w.y - (w.d||0.75) / 2) * s, (w.w||0.75) * s, (w.d||0.75) * s);
+  }
+
+  // 八角医院中心轮廓高亮
+  mCtx.strokeStyle = '#54a0ff';
+  mCtx.lineWidth = 1;
+  const hC = toW(4.7, 5.0);
+  mCtx.strokeRect((hC.x - 1.7 * G2W) * s, (hC.y - 1.7 * G2W) * s, (3.4 * G2W) * s, (3.4 * G2W) * s);
+
+  // 密码机
+  for (const c of CIPHERS) {
+    mCtx.fillStyle = c.done ? '#45e060' : '#f5c542';
+    mCtx.beginPath(); mCtx.arc(c.x * s, c.y * s, 2.2, 0, Math.PI * 2); mCtx.fill();
+  }
+
+  // 地窖
+  mCtx.fillStyle = '#9d4edd';
+  for (const h of HATCHES) {
+    mCtx.fillRect(h.x * s - 1.8, h.y * s - 1.8, 3.6, 3.6);
+  }
+
+  // 逃生门
+  mCtx.fillStyle = '#cc3e32';
+  for (const g of EXITS) {
+    mCtx.fillRect((g.x - g.w / 2) * s, (g.y - g.d / 2) * s, g.w * s, g.d * s);
+  }
+
+  // 玩家位置
+  mCtx.fillStyle = player.z > 2.0 ? '#54a0ff' : '#ffd15c';
+  mCtx.beginPath();
+  mCtx.arc(player.x * s, player.y * s, 3.2, 0, Math.PI * 2);
+  mCtx.fill();
+  mCtx.strokeStyle = '#000'; mCtx.lineWidth = 1; mCtx.stroke();
+}
+
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
