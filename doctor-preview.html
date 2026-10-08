@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>可爱医生 3D 建模方案对比预览</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: radial-gradient(circle at 50% 30%, #222c36 0%, #12171c 100%);
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    #canvas-container {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0; left: 0;
+    }
+    .ui-layer {
+      position: absolute;
+      pointer-events: none;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 24px;
+      z-index: 10;
+    }
+    .header {
+      pointer-events: auto;
+      background: rgba(18, 24, 32, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 16px 24px;
+      border-radius: 16px;
+      max-width: 580px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #ffffff;
+    }
+    .header h1 .badge {
+      font-size: 11px;
+      font-weight: 500;
+      background: #ff708f;
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .header p {
+      font-size: 13px;
+      color: #9ab0c4;
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+    .controls-panel {
+      pointer-events: auto;
+      background: rgba(18, 24, 32, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 16px 20px;
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-self: center;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+      max-width: 90vw;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .section-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #798fa3;
+      margin-bottom: -4px;
+      text-align: center;
+    }
+    button {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbdbe8;
+      padding: 9px 18px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    button:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    button.active {
+      background: linear-gradient(135deg, #ff758c 0%, #ff5e62 100%);
+      border-color: #ff859d;
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(255, 94, 98, 0.4);
+    }
+    .hint {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(10, 14, 20, 0.6);
+      backdrop-filter: blur(8px);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #798fa3;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div class="ui-layer">
+    <div class="header">
+      <h1>艾米丽 (医生) · 可爱建模方案设计 <span class="badge">预览对比</span></h1>
+      <p id="desc">方案 A：【日系粘土人 / Nendoroid 治愈系】— 2.2 头身圆润软萌娃娃，水汪汪动漫高光大眼，粉嫩脸蛋腮红，蓬松内扣刘海与微翘小波波发，软萌小护士帽与蝴蝶结。</p>
+    </div>
+
+    <div class="controls-panel">
+      <div class="section-label">造型方案选择 (点击切换体验)</div>
+      <div class="btn-group">
+        <button id="btn-style-a" class="active" onclick="switchStyle('A')">🌸 方案 A：日系粘土人 (萌系推荐)</button>
+        <button id="btn-style-b" onclick="switchStyle('B')">🎀 方案 B：潮玩盲盒手办 (清甜少女)</button>
+        <button id="btn-style-c" onclick="switchStyle('C')">🍼 方案 C：极致二头身小软萌 (微胖治愈)</button>
+      </div>
+
+      <div class="section-label">动作预览</div>
+      <div class="btn-group">
+        <button id="btn-anim-idle" class="active" onclick="setAnim('idle')">🍃 待机呼吸</button>
+        <button id="btn-anim-run" onclick="setAnim('run')">🏃 萌步奔跑</button>
+        <button id="btn-anim-wave" onclick="setAnim('wave')">👋 元气招手</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">🖱️ 鼠标左键旋转视角 · 滚轮缩放 · 右键平移</div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x1a2129, 0.025);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 2.2, 5.2);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.minDistance = 2.0;
+    controls.maxDistance = 9.0;
+    controls.target.set(0, 1.4, 0);
+
+    // Warm Studio Lighting (手办展示台柔光)
+    const ambientLight = new THREE.AmbientLight(0xfff3e8, 0.95);
+    scene.add(ambientLight);
+
+    const mainKeyLight = new THREE.DirectionalLight(0xfff6ea, 1.5);
+    mainKeyLight.position.set(3.5, 6, 4.5);
+    mainKeyLight.castShadow = true;
+    mainKeyLight.shadow.mapSize.width = 2048;
+    mainKeyLight.shadow.mapSize.height = 2048;
+    mainKeyLight.shadow.bias = -0.0003;
+    scene.add(mainKeyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xbad7f2, 0.85);
+    fillLight.position.set(-4, 3.5, 3);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xffd1dc, 1.3);
+    rimLight.position.set(0, 4.5, -4);
+    scene.add(rimLight);
+
+    // Cute Showcase Pedestal (圆润展示底座)
+    const pedestalGroup = new THREE.Group();
+    const baseMat = new THREE.MeshStandardMaterial({ color: 0x222a33, roughness: 0.35, metalness: 0.1 });
+    const topPlateMat = new THREE.MeshStandardMaterial({ color: 0x313d4b, roughness: 0.25, metalness: 0.15 });
+    const glowRingMat = new THREE.MeshStandardMaterial({ color: 0xff8fa3, emissive: 0xff6b8b, emissiveIntensity: 1.2 });
+
+    const baseCyl = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 2.0, 0.18, 48), baseMat);
+    baseCyl.position.y = -0.09;
+    baseCyl.receiveShadow = true;
+    pedestalGroup.add(baseCyl);
+
+    const topCyl = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.04, 48), topPlateMat);
+    topCyl.position.y = 0.02;
+    topCyl.receiveShadow = true;
+    pedestalGroup.add(topCyl);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.72, 0.022, 16, 64), glowRingMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.02;
+    pedestalGroup.add(ring);
+    scene.add(pedestalGroup);
+
+    // Texture Generator: Watery Anime Eye with Star Highlights (绘制水汪汪日系手办大眼)
+    function createAnimeEyeTexture(irisColor = '#3a5a78', pupilColor = '#1a2936') {
+      const cv = document.createElement('canvas');
+      cv.width = 512; cv.height = 512;
+      const ctx = cv.getContext('2d');
+
+      // Clear
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(256, 256, 210, 240, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eye shadow at top of sclera
+      const topGrad = ctx.createLinearGradient(0, 20, 0, 200);
+      topGrad.addColorStop(0, '#c7d5e2');
+      topGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = topGrad;
+      ctx.beginPath();
+      ctx.ellipse(256, 256, 210, 240, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Iris Oval
+      const irisGrad = ctx.createLinearGradient(0, 100, 0, 430);
+      irisGrad.addColorStop(0, pupilColor);
+      irisGrad.addColorStop(0.5, irisColor);
+      irisGrad.addColorStop(1, '#81b8e8');
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.ellipse(256, 265, 155, 185, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupil
+      ctx.fillStyle = pupilColor;
+      ctx.beginPath();
+      ctx.ellipse(256, 255, 75, 95, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Lower Reflection Arc
+      ctx.strokeStyle = '#a6dbff';
+      ctx.lineWidth = 14;
+      ctx.beginPath();
+      ctx.arc(256, 275, 110, 0.25 * Math.PI, 0.75 * Math.PI);
+      ctx.stroke();
+
+      // Cute Big White Highlight
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(195, 175, 48, 56, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Secondary Small Sparkle
+      ctx.beginPath();
+      ctx.ellipse(310, 325, 24, 28, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tiny twinkle dot
+      ctx.beginPath();
+      ctx.arc(295, 195, 14, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Upper Eyelash line (柔和内双睫毛)
+      ctx.fillStyle = '#221915';
+      ctx.beginPath();
+      ctx.moveTo(40, 160);
+      ctx.bezierCurveTo(150, 40, 360, 40, 470, 160);
+      ctx.bezierCurveTo(360, 65, 150, 65, 40, 160);
+      ctx.fill();
+
+      return new THREE.CanvasTexture(cv);
+    }
+
+    // Blush Texture (粉扑扑渐变腮红)
+    function createBlushTexture() {
+      const cv = document.createElement('canvas');
+      cv.width = 128; cv.height = 128;
+      const ctx = cv.getContext('2d');
+      const grad = ctx.createRadialGradient(64, 64, 5, 64, 64, 60);
+      grad.addColorStop(0, 'rgba(255, 120, 145, 0.75)');
+      grad.addColorStop(0.5, 'rgba(255, 130, 155, 0.35)');
+      grad.addColorStop(1, 'rgba(255, 130, 155, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(cv);
+    }
+
+    const eyeTex = createAnimeEyeTexture('#2d5b88', '#142030');
+    const blushTex = createBlushTexture();
+
+    // Reusable Mesh Helpers with rounded soft edges
+    function sphere(r, sx, sy, sz, mat, parent, x=0, y=0, z=0) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 24), mat);
+      m.scale.set(sx, sy, sz);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+
+    function cyl(rt, rb, h, mat, parent, x=0, y=0, z=0) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 24), mat);
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      parent.add(m);
+      return m;
+    }
+
+    let activeCharacter = null;
+    let animMode = 'idle';
+    let currentStyle = 'A';
+
+    // ==========================================
+    // 方案 A：日系粘土人 / Nendoroid 治愈萌系 (推荐)
+    // 2.2 头身，婴儿肥嘟嘟脸，水汪汪动漫高光大眼，蓬松微卷发
+    // ==========================================
+    function buildStyleA() {
+      const root = new THREE.Group();
+      root.name = 'DoctorA';
+
+      // Soft materials (手办微润温和触感)
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffefe4, roughness: 0.65 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: 0x42281a, roughness: 0.82 }); // 柔顺焦糖深棕
+      const dressMat = new THREE.MeshStandardMaterial({ color: 0xf8fbff, roughness: 0.55 }); // 纯白护士裙
+      const navyMat = new THREE.MeshStandardMaterial({ color: 0x22496a, roughness: 0.65 });  // 海军蓝蝴蝶结 & 缎带
+      const pinkMat = new THREE.MeshStandardMaterial({ color: 0xff6b8b, roughness: 0.6 });
+      const shoeMat = new THREE.MeshStandardMaterial({ color: 0x2d1c1c, roughness: 0.4 });  // 玛丽珍小圆皮鞋
+
+      // 1. Chubby Head & Cute Face
+      const headG = new THREE.Group();
+      headG.position.set(0, 1.55, 0);
+      root.add(headG);
+
+      // Cute round head with baby cheeks (圆润大脑袋)
+      const face = sphere(0.46, 1.08, 0.96, 1.04, skinMat, headG, 0, 0, 0);
+
+      // Baby Chubby Cheeks (鼓嘟嘟腮帮)
+      sphere(0.19, 1.1, 0.9, 0.85, skinMat, headG, -0.31, -0.11, 0.18);
+      sphere(0.19, 1.1, 0.9, 0.85, skinMat, headG, 0.31, -0.11, 0.18);
+
+      // Soft Rosy Blush (水蜜桃腮红)
+      const blushMat = new THREE.MeshBasicMaterial({ map: blushTex, transparent: true, opacity: 0.85, depthWrite: false });
+      const blushL = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), blushMat);
+      blushL.position.set(-0.28, -0.11, 0.38); blushL.rotation.y = -0.3; headG.add(blushL);
+      const blushR = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), blushMat);
+      blushR.position.set(0.28, -0.11, 0.38); blushR.rotation.y = 0.3; headG.add(blushR);
+
+      // Anime Watery Eyes (水灵动漫大眼)
+      const eyeMat = new THREE.MeshBasicMaterial({ map: eyeTex, transparent: true });
+      const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.26), eyeMat);
+      eyeL.position.set(-0.19, 0.02, 0.45); eyeL.rotation.y = -0.12; headG.add(eyeL);
+      const eyeR = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.26), eyeMat);
+      eyeR.position.set(0.19, 0.02, 0.45); eyeR.rotation.y = 0.12; headG.add(eyeR);
+
+      // Cute Smile (微笑萌嘴)
+      const mouthMat = new THREE.MeshStandardMaterial({ color: 0x993d48, roughness: 0.5 });
+      const mouth = sphere(0.045, 1.1, 0.4, 0.4, mouthMat, headG, 0, -0.19, 0.45);
+
+      // Fluffy Anime Hair (蓬松发型)
+      const hairBase = sphere(0.49, 1.1, 1.05, 1.06, hairMat, headG, 0, 0.08, -0.05);
+      // Soft Side Locks (两鬓微卷内扣发)
+      sphere(0.14, 0.8, 2.2, 0.8, hairMat, headG, -0.42, -0.14, 0.18).rotation.z = -0.18;
+      sphere(0.14, 0.8, 2.2, 0.8, hairMat, headG, 0.42, -0.14, 0.18).rotation.z = 0.18;
+      // Front Bangs (柔和刘海发丝)
+      sphere(0.18, 1.4, 0.8, 0.8, hairMat, headG, -0.18, 0.32, 0.38).rotation.z = -0.25;
+      sphere(0.18, 1.4, 0.8, 0.8, hairMat, headG, 0.18, 0.32, 0.38).rotation.z = 0.25;
+      sphere(0.14, 1.1, 0.7, 0.7, hairMat, headG, 0, 0.35, 0.42);
+      // Back Chignon Bun (温婉小发髻)
+      sphere(0.22, 1.1, 1.0, 0.8, hairMat, headG, 0, 0.04, -0.46);
+
+      // Cute Nurse Cap (倾斜软萌护士帽)
+      const capG = new THREE.Group();
+      capG.position.set(0, 0.48, 0.05);
+      capG.rotation.set(-0.15, 0, 0.08);
+      headG.add(capG);
+      const capBase = cyl(0.32, 0.38, 0.16, dressMat, capG);
+      capBase.scale.set(1.15, 1, 0.85);
+      // Blue Cross Emblem
+      const crossG = new THREE.Group();
+      crossG.position.set(0, 0.02, 0.33);
+      capG.add(crossG);
+      cyl(0.04, 0.04, 0.13, navyMat, crossG);
+      const crossH = cyl(0.04, 0.04, 0.13, navyMat, crossG);
+      crossH.rotation.z = Math.PI / 2;
+
+      // 2. Chibi Body (软萌微胖小身体)
+      const bodyG = new THREE.Group();
+      bodyG.position.set(0, 0.98, 0);
+      root.add(bodyG);
+
+      // Dress Torso
+      const chest = sphere(0.28, 1.05, 1.15, 0.95, dressMat, bodyG, 0, 0.12, 0);
+      // Sailor Collar & Ribbon Bowtie (海军风翻领与蓝色缎带蝴蝶结)
+      cyl(0.22, 0.3, 0.1, navyMat, bodyG, 0, 0.34, 0);
+      const bow = sphere(0.065, 0.9, 0.8, 0.6, navyMat, bodyG, 0, 0.28, 0.26);
+      sphere(0.05, 1.4, 0.8, 0.5, navyMat, bodyG, -0.09, 0.28, 0.24).rotation.z = 0.4;
+      sphere(0.05, 1.4, 0.8, 0.5, navyMat, bodyG, 0.09, 0.28, 0.24).rotation.z = -0.4;
+
+      // Cute Flared Skirt (蓬蓬百褶小短裙)
+      const skirt = cyl(0.26, 0.42, 0.34, dressMat, bodyG, 0, -0.22, 0);
+      cyl(0.422, 0.425, 0.04, navyMat, bodyG, 0, -0.37, 0); // 裙边蓝边
+
+      // 3. Round Arms & Hands (圆滚滚小手)
+      function buildCuteArm(side) {
+        const armRoot = new THREE.Group();
+        armRoot.position.set(side * 0.32, 1.15, 0);
+        root.add(armRoot);
+        // Puff shoulder (泡泡袖)
+        sphere(0.12, 1, 1.1, 1, dressMat, armRoot, 0, 0, 0);
+        // Arm
+        cyl(0.08, 0.07, 0.34, dressMat, armRoot, side * 0.02, -0.18, 0);
+        // Round Chubby Mitten Hand (圆圆小手)
+        sphere(0.08, 1, 1.1, 0.9, skinMat, armRoot, side * 0.02, -0.4, 0);
+        return armRoot;
+      }
+      const armL = buildCuteArm(-1);
+      const armR = buildCuteArm(1);
+
+      // 4. Little Chibi Legs & Mary Jane Shoes (小短腿 & 玛丽珍鞋)
+      function buildCuteLeg(side) {
+        const legRoot = new THREE.Group();
+        legRoot.position.set(side * 0.16, 0.64, 0);
+        root.add(legRoot);
+        // White socks
+        cyl(0.095, 0.09, 0.36, dressMat, legRoot, 0, -0.16, 0);
+        // Cute Rounded Shoe (圆头小皮鞋)
+        const shoe = sphere(0.11, 1, 0.85, 1.35, shoeMat, legRoot, 0, -0.38, 0.04);
+        return legRoot;
+      }
+      const legL = buildCuteLeg(-1);
+      const legR = buildCuteLeg(1);
+
+      // 5. Cute Prop: Mini Heart Med-Kit (粉白爱心手提急救小箱)
+      const bagG = new THREE.Group();
+      bagG.position.set(-0.35, 0.85, 0.15);
+      root.add(bagG);
+      const bagBox = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.2, 0.14), new THREE.MeshStandardMaterial({ color: 0xfffcf9, roughness: 0.4 }));
+      bagBox.castShadow = true; bagG.add(bagBox);
+      // Pink Heart Emblem
+      const heart = sphere(0.045, 1, 1, 0.4, pinkMat, bagG, 0, 0, 0.075);
+
+      root.userData = { headG, bodyG, armL, armR, legL, legR, bagG, eyeL, eyeR };
+      return root;
+    }
+
+    // ==========================================
+    // 方案 B：潮玩盲盒 / Pop Mart 风格 (清甜元气少女)
+    // 2.8 头身，身形略微纤细优雅，微卷双丸子发髻，爱心听诊器
+    // ==========================================
+    function buildStyleB() {
+      const root = new THREE.Group();
+      root.name = 'DoctorB';
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xfff0e8, roughness: 0.6 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: 0x5a3825, roughness: 0.8 }); // 温暖栗子红棕
+      const dressMat = new THREE.MeshStandardMaterial({ color: 0xf5f8fc, roughness: 0.5 });
+      const mintMat = new THREE.MeshStandardMaterial({ color: 0x50b8a8, roughness: 0.55 }); // 清新薄荷绿领结
+      const shoeMat = new THREE.MeshStandardMaterial({ color: 0x3d2822, roughness: 0.4 });
+
+      // 1. Head
+      const headG = new THREE.Group();
+      headG.position.set(0, 1.72, 0);
+      root.add(headG);
+
+      const face = sphere(0.42, 1.05, 0.98, 1.02, skinMat, headG, 0, 0, 0);
+      // Rosy Blush
+      const blushMat = new THREE.MeshBasicMaterial({ map: blushTex, transparent: true, opacity: 0.75, depthWrite: false });
+      const bL = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), blushMat);
+      bL.position.set(-0.25, -0.09, 0.36); bL.rotation.y = -0.28; headG.add(bL);
+      const bR = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), blushMat);
+      bR.position.set(0.25, -0.09, 0.36); bR.rotation.y = 0.28; headG.add(bR);
+
+      // Anime Eye
+      const eyeMat = new THREE.MeshBasicMaterial({ map: eyeTex, transparent: true });
+      const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.24), eyeMat);
+      eyeL.position.set(-0.17, 0.02, 0.41); eyeL.rotation.y = -0.1; headG.add(eyeL);
+      const eyeR = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.24), eyeMat);
+      eyeR.position.set(0.17, 0.02, 0.41); eyeR.rotation.y = 0.1; headG.add(eyeR);
+
+      // Soft Brunette Hair with Double Bun (可爱双丸子发包)
+      sphere(0.45, 1.08, 1.05, 1.05, hairMat, headG, 0, 0.08, -0.04);
+      // Twin buns
+      sphere(0.18, 1, 1, 0.9, hairMat, headG, -0.38, 0.28, -0.12);
+      sphere(0.18, 1, 1, 0.9, hairMat, headG, 0.38, 0.28, -0.12);
+      // Soft Bangs
+      sphere(0.15, 1.3, 0.7, 0.7, hairMat, headG, -0.14, 0.3, 0.35).rotation.z = -0.2;
+      sphere(0.15, 1.3, 0.7, 0.7, hairMat, headG, 0.14, 0.3, 0.35).rotation.z = 0.2;
+
+      // Beret / Modern Nurse Headband (粉白发箍小帽)
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.44, 0.035, 12, 32, Math.PI), dressMat);
+      band.position.set(0, 0.12, 0.1);
+      band.rotation.set(-0.4, 0, 0);
+      headG.add(band);
+
+      // 2. Torso & Fitted Waistcoat
+      const bodyG = new THREE.Group();
+      bodyG.position.set(0, 1.1, 0);
+      root.add(bodyG);
+
+      sphere(0.26, 1.0, 1.25, 0.9, dressMat, bodyG, 0, 0.16, 0);
+      // Mint Bowtie
+      sphere(0.05, 1, 0.8, 0.6, mintMat, bodyG, 0, 0.32, 0.24);
+      sphere(0.045, 1.5, 0.8, 0.5, mintMat, bodyG, -0.08, 0.32, 0.22).rotation.z = 0.4;
+      sphere(0.045, 1.5, 0.8, 0.5, mintMat, bodyG, 0.08, 0.32, 0.22).rotation.z = -0.4;
+
+      // Stethoscope around neck (爱心听诊器)
+      const stethMat = new THREE.MeshStandardMaterial({ color: 0x3d4b58, roughness: 0.5 });
+      const stethL = cyl(0.016, 0.016, 0.35, stethMat, bodyG, -0.14, 0.25, 0.15); stethL.rotation.z = 0.35;
+      const stethR = cyl(0.016, 0.016, 0.35, stethMat, bodyG, 0.14, 0.25, 0.15); stethR.rotation.z = -0.35;
+      sphere(0.05, 1, 1, 0.4, new THREE.MeshStandardMaterial({ color: 0xff6b8b }), bodyG, 0, 0.08, 0.26); // heart piece
+
+      // Cute Pleated Skirt
+      cyl(0.24, 0.36, 0.35, dressMat, bodyG, 0, -0.22, 0);
+
+      // 3. Arms
+      function buildArmB(side) {
+        const armRoot = new THREE.Group();
+        armRoot.position.set(side * 0.3, 1.28, 0);
+        root.add(armRoot);
+        sphere(0.1, 1, 1.1, 1, dressMat, armRoot, 0, 0, 0);
+        cyl(0.07, 0.065, 0.42, dressMat, armRoot, side * 0.02, -0.22, 0);
+        sphere(0.07, 0.9, 1.1, 0.8, skinMat, armRoot, side * 0.02, -0.48, 0);
+        return armRoot;
+      }
+      const armL = buildArmB(-1);
+      const armR = buildArmB(1);
+
+      // 4. Slender Cute Legs
+      function buildLegB(side) {
+        const legRoot = new THREE.Group();
+        legRoot.position.set(side * 0.14, 0.72, 0);
+        root.add(legRoot);
+        cyl(0.08, 0.075, 0.5, dressMat, legRoot, 0, -0.24, 0);
+        sphere(0.095, 0.95, 0.85, 1.35, shoeMat, legRoot, 0, -0.52, 0.03);
+        return legRoot;
+      }
+      const legL = buildLegB(-1);
+      const legR = buildLegB(1);
+
+      root.userData = { headG, bodyG, armL, armR, legL, legR, eyeL, eyeR };
+      return root;
+    }
+
+    // ==========================================
+    // 方案 C：极致二头身小软萌 (微胖软胶公仔)
+    // 2.0 头身极致小矮墩，走动如同小企鹅，大脑袋大眼睛
+    // ==========================================
+    function buildStyleC() {
+      const root = new THREE.Group();
+      root.name = 'DoctorC';
+
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xffeedd, roughness: 0.68 });
+      const hairMat = new THREE.MeshStandardMaterial({ color: 0x38241b, roughness: 0.85 });
+      const dressMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+      const pinkMat = new THREE.MeshStandardMaterial({ color: 0xff8fa3, roughness: 0.6 });
+      const darkMat = new THREE.MeshStandardMaterial({ color: 0x2b2220, roughness: 0.5 });
+
+      // 1. Huge Chubby Head
+      const headG = new THREE.Group();
+      headG.position.set(0, 1.38, 0);
+      root.add(headG);
+
+      sphere(0.52, 1.12, 0.94, 1.05, skinMat, headG, 0, 0, 0);
+      // Super Chubby Cheeks
+      sphere(0.22, 1.2, 0.9, 0.8, skinMat, headG, -0.36, -0.12, 0.2);
+      sphere(0.22, 1.2, 0.9, 0.8, skinMat, headG, 0.36, -0.12, 0.2);
+
+      // Blush
+      const blushMat = new THREE.MeshBasicMaterial({ map: blushTex, transparent: true, opacity: 0.9, depthWrite: false });
+      const bL = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28), blushMat);
+      bL.position.set(-0.32, -0.11, 0.42); bL.rotation.y = -0.32; headG.add(bL);
+      const bR = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 0.28), blushMat);
+      bR.position.set(0.32, -0.11, 0.42); bR.rotation.y = 0.32; headG.add(bR);
+
+      // Anime Eye
+      const eyeMat = new THREE.MeshBasicMaterial({ map: eyeTex, transparent: true });
+      const eyeL = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.29), eyeMat);
+      eyeL.position.set(-0.21, 0.02, 0.51); eyeL.rotation.y = -0.14; headG.add(eyeL);
+      const eyeR = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.29), eyeMat);
+      eyeR.position.set(0.21, 0.02, 0.51); eyeR.rotation.y = 0.14; headG.add(eyeR);
+
+      // Hair
+      sphere(0.55, 1.12, 1.05, 1.08, hairMat, headG, 0, 0.08, -0.06);
+      // Cute Curled Bob
+      sphere(0.18, 0.9, 1.8, 0.9, hairMat, headG, -0.48, -0.18, 0.18).rotation.z = -0.25;
+      sphere(0.18, 0.9, 1.8, 0.9, hairMat, headG, 0.48, -0.18, 0.18).rotation.z = 0.25;
+      // Front Bangs
+      sphere(0.22, 1.5, 0.8, 0.8, hairMat, headG, 0, 0.36, 0.44);
+
+      // Oversized Chubby Nurse Cap
+      const capG = new THREE.Group();
+      capG.position.set(0, 0.52, 0.05);
+      headG.add(capG);
+      cyl(0.38, 0.45, 0.16, dressMat, capG).scale.set(1.15, 1, 0.85);
+      const cross = cyl(0.045, 0.045, 0.15, pinkMat, capG, 0, 0.02, 0.38);
+      const crossH = cyl(0.045, 0.045, 0.15, pinkMat, capG, 0, 0.02, 0.38); crossH.rotation.z = Math.PI / 2;
+
+      // 2. Tiny Chubby Body (肥嘟嘟小汤圆身体)
+      const bodyG = new THREE.Group();
+      bodyG.position.set(0, 0.72, 0);
+      root.add(bodyG);
+      sphere(0.32, 1.1, 1.1, 1.0, dressMat, bodyG, 0, 0.08, 0);
+      cyl(0.3, 0.44, 0.26, dressMat, bodyG, 0, -0.16, 0);
+
+      // Pink Bow
+      sphere(0.06, 1, 0.8, 0.6, pinkMat, bodyG, 0, 0.2, 0.32);
+
+      // 3. Short Chubby Arms
+      function buildArmC(side) {
+        const armRoot = new THREE.Group();
+        armRoot.position.set(side * 0.34, 0.82, 0);
+        root.add(armRoot);
+        sphere(0.11, 1.1, 1, 1, dressMat, armRoot, 0, 0, 0);
+        cyl(0.085, 0.08, 0.26, dressMat, armRoot, side * 0.03, -0.12, 0);
+        sphere(0.09, 1, 1, 0.9, skinMat, armRoot, side * 0.03, -0.28, 0);
+        return armRoot;
+      }
+      const armL = buildArmC(-1);
+      const armR = buildArmC(1);
+
+      // 4. Tiny Chubby Legs
+      function buildLegC(side) {
+        const legRoot = new THREE.Group();
+        legRoot.position.set(side * 0.18, 0.44, 0);
+        root.add(legRoot);
+        cyl(0.1, 0.095, 0.26, dressMat, legRoot, 0, -0.12, 0);
+        sphere(0.12, 1, 0.8, 1.35, darkMat, legRoot, 0, -0.26, 0.04);
+        return legRoot;
+      }
+      const legL = buildLegC(-1);
+      const legR = buildLegC(1);
+
+      root.userData = { headG, bodyG, armL, armR, legL, legR, eyeL, eyeR };
+      return root;
+    }
+
+    // Spawn initial character
+    function loadModel(style) {
+      if (activeCharacter) scene.remove(activeCharacter);
+      if (style === 'A') activeCharacter = buildStyleA();
+      else if (style === 'B') activeCharacter = buildStyleB();
+      else if (style === 'C') activeCharacter = buildStyleC();
+      scene.add(activeCharacter);
+    }
+
+    loadModel('A');
+
+    // UI Switching Logic
+    const descText = document.getElementById('desc');
+    function switchStyle(style) {
+      currentStyle = style;
+      document.querySelectorAll('.btn-group button').forEach(b => {
+        if (b.id.startsWith('btn-style-')) b.classList.toggle('active', b.id === 'btn-style-' + style.toLowerCase());
+      });
+
+      if (style === 'A') {
+        descText.textContent = '方案 A：【日系粘土人 / Nendoroid 治愈系】— 2.2 头身圆润软萌娃娃，水汪汪动漫高光大眼，粉嫩脸蛋腮红，蓬松内扣刘海与微翘小波波发，软萌小护士帽与蝴蝶结。';
+        controls.target.set(0, 1.4, 0);
+      } else if (style === 'B') {
+        descText.textContent = '方案 B：【潮玩盲盒手办 / Pop Mart 风】— 2.8 头身更显修长优雅，温柔双丸子发髻，爱心听诊器挂在胸前，清新百褶小短裙，灵动元气少女。';
+        controls.target.set(0, 1.5, 0);
+      } else if (style === 'C') {
+        descText.textContent = '方案 C：【极致二头身小软萌】— 2.0 头身小矮墩微胖体型，圆滚滚小脸蛋大脑袋，走路像小企鹅一样左右摇晃，极度软糯治愈。';
+        controls.target.set(0, 1.25, 0);
+      }
+      loadModel(style);
+    }
+
+    function setAnim(anim) {
+      animMode = anim;
+      ['idle', 'run', 'wave'].forEach(a => {
+        document.getElementById('btn-anim-' + a).classList.toggle('active', a === anim);
+      });
+    }
+
+    // Animation Loop
+    let clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+      controls.update();
+
+      if (activeCharacter && activeCharacter.userData) {
+        const { headG, bodyG, armL, armR, legL, legR } = activeCharacter.userData;
+
+        if (animMode === 'idle') {
+          // Soft Cute Breathing & Idle Sway (萌萌待机微摆动)
+          const breath = Math.sin(t * 2.4);
+          headG.position.y = (currentStyle === 'B' ? 1.72 : currentStyle === 'C' ? 1.38 : 1.55) + breath * 0.015;
+          headG.rotation.z = Math.sin(t * 1.2) * 0.04;
+          bodyG.rotation.z = -Math.sin(t * 1.2) * 0.02;
+
+          armL.rotation.set(0.1 + breath * 0.04, 0, -0.15);
+          armR.rotation.set(0.1 + breath * 0.04, 0, 0.15);
+          legL.rotation.set(0, 0, 0);
+          legR.rotation.set(0, 0, 0);
+
+        } else if (animMode === 'run') {
+          // Bouncy Chibi Running Gait (小短腿欢快奔跑)
+          const runSpeed = 12;
+          const bounce = Math.abs(Math.sin(t * runSpeed)) * 0.06;
+          const lean = 0.18;
+          headG.position.y = (currentStyle === 'B' ? 1.72 : currentStyle === 'C' ? 1.38 : 1.55) + bounce;
+          headG.rotation.set(lean, 0, Math.sin(t * runSpeed * 0.5) * 0.08);
+          bodyG.rotation.set(lean, 0, 0);
+
+          const armSwing = Math.sin(t * runSpeed) * 0.8;
+          armL.rotation.set(-armSwing, 0, -0.2);
+          armR.rotation.set(armSwing, 0, 0.2);
+
+          const legSwing = Math.sin(t * runSpeed) * 0.75;
+          legL.rotation.set(legSwing, 0, 0);
+          legR.rotation.set(-legSwing, 0, 0);
+
+        } else if (animMode === 'wave') {
+          // Cute Greeting Wave (歪头可爱招手)
+          headG.position.y = (currentStyle === 'B' ? 1.72 : currentStyle === 'C' ? 1.38 : 1.55);
+          headG.rotation.set(0, 0, 0.12 + Math.sin(t * 3) * 0.03); // tilted head
+
+          armL.rotation.set(0.1, 0, -0.15);
+          // Right arm raised waving
+          armR.rotation.set(1.5, 0, 1.2 + Math.sin(t * 8) * 0.35);
+
+          legL.rotation.set(0, 0, 0);
+          legR.rotation.set(0, 0, 0);
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
