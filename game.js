@@ -1,4 +1,5 @@
 import * as map from './map.js';
+import {mapToWorld} from './map-editor.js';
 import {findRoute} from './pathfinding.js';
 export const SIZE=map.SIZE;
 export const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -64,6 +65,65 @@ export function groundHeight(x,y,z=0){return map.groundHeight(x,y,z);}
 walls.push({x:108,y:14,w:.4,d:12,h:1.3,base:4,rail:true},{x:122,y:14,w:.4,d:12,h:1.3,base:4,rail:true},{x:115,y:8,w:14,d:.4,h:1.3,base:4,rail:true});
 walls.splice(0,walls.length,...map.walls);obstacles.splice(0,obstacles.length,...map.obstacles);outdoorWindows.splice(0,outdoorWindows.length,...map.outdoorWindows);outdoorPallets.splice(0,outdoorPallets.length,...map.outdoorPallets);Object.assign(factory,map.factory);Object.assign(upperDeck,map.upperDeck);
 export const ramps=map.ramps,upperFloors=map.upperFloors;
+
+// ---------------------------------------------------------------------------
+// Custom map support: replace the active world arrays in place so every
+// consumer (collision, rendering, match) sees the custom layout.
+// ---------------------------------------------------------------------------
+let activeCustomWorld=null;
+const DEFAULT_MAP_SNAPSHOT={
+  walls: walls.map(w=>({...w})),
+  obstacles: obstacles.map(o=>({...o})),
+  outdoorWindows: map.outdoorWindows.map(w=>({...w})),
+  outdoorPallets: map.outdoorPallets.map(p=>({...p})),
+  exits: map.exits.map(e=>({...e})),
+  ramps: map.ramps.map(r=>({...r})),
+  upperFloors: map.upperFloors.map(f=>({...f})),
+  roofs: map.roofs.map(r=>({...r}))
+};
+export function getActiveCustomWorld(){return activeCustomWorld;}
+export function applyCustomMapToWorld(mapData){
+  const world=mapToWorld(mapData);
+  activeCustomWorld=world;
+  walls.splice(0,walls.length,...world.walls.map(w=>({...w})));
+  obstacles.splice(0,obstacles.length,...world.obstacles.map(o=>({...o})));
+  map.outdoorWindows.splice(0,map.outdoorWindows.length,...world.windows.map(w=>({...w})));
+  map.outdoorPallets.splice(0,map.outdoorPallets.length,...world.pallets.map(p=>({...p})));
+  map.exits.splice(0,map.exits.length,...world.exits.map(e=>({...e})));
+  map.ramps.splice(0,map.ramps.length,...world.ramps.map(r=>({...r})));
+  map.upperFloors.splice(0,map.upperFloors.length,...world.upperFloors.map(f=>({...f})));
+  map.roofs.splice(0,map.roofs.length,...world.roofs.map(r=>({...r})));
+  return world;
+}
+export function clearCustomMap(){
+  if(!activeCustomWorld)return;
+  activeCustomWorld=null;
+  walls.splice(0,walls.length,...DEFAULT_MAP_SNAPSHOT.walls);
+  obstacles.splice(0,obstacles.length,...DEFAULT_MAP_SNAPSHOT.obstacles);
+  map.outdoorWindows.splice(0,map.outdoorWindows.length,...DEFAULT_MAP_SNAPSHOT.outdoorWindows);
+  map.outdoorPallets.splice(0,map.outdoorPallets.length,...DEFAULT_MAP_SNAPSHOT.outdoorPallets);
+  map.exits.splice(0,map.exits.length,...DEFAULT_MAP_SNAPSHOT.exits);
+  map.ramps.splice(0,map.ramps.length,...DEFAULT_MAP_SNAPSHOT.ramps);
+  map.upperFloors.splice(0,map.upperFloors.length,...DEFAULT_MAP_SNAPSHOT.upperFloors);
+  map.roofs.splice(0,map.roofs.length,...DEFAULT_MAP_SNAPSHOT.roofs);
+}
+// Pick spread-out spawn points from the custom map's open cells.
+export function pickCustomSpawns(world,count){
+  const cells=(world?.openCells||[]).slice();
+  if(!cells.length){const b=world?world.size.w/2:70;return Array.from({length:count},()=>({x:b,y:b,z:0}));}
+  cells.sort(()=>Math.random()-0.5);
+  const chosen=[cells[0]];
+  while(chosen.length<count){
+    let best=null,maxD=-1;
+    for(const c of cells){
+      if(chosen.includes(c))continue;
+      const minD=Math.min(...chosen.map(s=>Math.hypot(s.x-c.x,s.y-c.y)));
+      if(minD>maxD){maxD=minD;best=c;}
+    }
+    chosen.push(best||cells[chosen.length%cells.length]);
+  }
+  return chosen.slice(0,count).map(c=>({x:c.x,y:c.y,z:0}));
+}
 export class Game{
   constructor(){this.characterId='mercenary';this.hunterId='ripper';this.role='survivor';this.reset();}
   reset(){this.resetState();this.configureMap();this.attack=null;this.healing=false;this.collisionHeight=0;this.palletVaultLock=0;this.palletReleaseRequired=false;}
@@ -71,6 +131,24 @@ export class Game{
   get currentHunter(){return hunters.find(h=>h.id===this.hunterId)||hunters[0];}
   selectHunter(id){if(this.status!=='ready'||!hunters.some(h=>h.id===id))return false;this.hunterId=id;return true;}
   configureMap(){
+    this._staticColliders=null;
+    if(activeCustomWorld){
+      const w=activeCustomWorld;
+      const spawns=pickCustomSpawns(w,5);
+      this.customMap=true;
+      this.customWorld=w;
+      this.player={...spawns[0],angle:0,health:2,nickname:'我'};
+      this.hunter={...spawns[1],angle:0};
+      this.survivors=[this.player];
+      this.windows=w.windows.map(x=>({...x}));
+      this.pallets=w.pallets.map(p=>({...p,down:false,drop:0,broken:false}));
+      this.generators=w.generators.map(g=>({...g,p:0}));
+      this.exits=w.exits.map(e=>({...e,p:0}));
+      this.exit=this.exits[0]||{x:w.size.w,y:w.size.h/2,p:0,side:1};
+      this.customHatch=w.hatchLocations.slice();
+      return;
+    }
+    this.customMap=false;
     this.player={x:40,y:70,z:0,angle:0,health:2,nickname:'我'};
     this.hunter={x:150,y:60,z:0,angle:0};
     this.survivors=[this.player];
@@ -264,8 +342,8 @@ export class Game{
       ];
     }
     const dynamic=[
-      ...this.pallets.filter(p=>p.down&&!p.broken).map(p=>({x:p.x,y:p.y,w:4,d:1})),
-      ...this.windows.map(w=>({x:w.x,y:w.y,w:4,d:1}))
+      ...this.pallets.filter(p=>p.down&&!p.broken).map(p=>p.orient==='v'?{x:p.x,y:p.y,w:1,d:4}:{x:p.x,y:p.y,w:4,d:1}),
+      ...this.windows.map(w=>w.orient==='v'?{x:w.x,y:w.y,w:1,d:4}:{x:w.x,y:w.y,w:4,d:1})
     ];
     return [...this._staticColliders,...dynamic].filter(w=>z<(w.base||0)+(w.h||2)&&z+2.8>(w.base||0));
   }

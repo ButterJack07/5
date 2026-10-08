@@ -375,8 +375,20 @@ export function mapToWorld(map, cell = null) {
     cell: c,
     size: { w: map.size.cols * c, h: map.size.rows * c },
     walls: [], obstacles: [], generators: [], pallets: [], windows: [], exits: [], chairs: [],
-    hatchLocations: [], roofs: [], ramps: [], upperFloors: [], railings: []
+    hatchLocations: [], roofs: [], ramps: [], upperFloors: [], railings: [], openCells: []
   };
+
+  const solidCells = new Set();
+  for (const t of map.tiles) {
+    if (['wall', 'manorWall', 'rock', 'tree', 'obstacle'].includes(t.type)) solidCells.add(`${t.x},${t.y}`);
+  }
+  for (const s of map.structures) {
+    const [fw, fh] = TILES[s.type].footprint;
+    for (let dx = 0; dx < fw; dx++) for (let dy = 0; dy < fh; dy++) solidCells.add(`${s.x + dx},${s.y + dy}`);
+  }
+  for (let gy = 0; gy < map.size.rows; gy++) for (let gx = 0; gx < map.size.cols; gx++) {
+    if (!solidCells.has(`${gx},${gy}`)) world.openCells.push({ x: cx(gx), y: cy(gy) });
+  }
 
   for (const t of map.tiles) {
     const x = cx(t.x), y = cy(t.y);

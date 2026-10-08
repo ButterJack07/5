@@ -1,4 +1,5 @@
-import {Game, obstacles, walls, characters, hunters, distance, palletPose, SIZE, factory, upperDeck, groundHeight, ramps, upperFloors} from './game.js';
+import {Game, obstacles, walls, characters, hunters, distance, palletPose, SIZE, factory, upperDeck, groundHeight, ramps, upperFloors, applyCustomMapToWorld, getActiveCustomWorld, clearCustomMap} from './game.js';
+import {deserializeMap} from './map-editor.js';
 import {inputKey, isGameKey} from './input.js';
 import {roofs} from './map.js';
 import {enableLayoutEditor} from './layout.js';
@@ -13,6 +14,12 @@ import {lockerLocations} from './map-interactions.js';
 import {quickMessages,preparationRemaining} from './room-flow.js';
 const $=s=>document.querySelector(s), game=new Game(), canvas=$('#flat'),ctx=canvas.getContext('2d');
 game.generators=cipherLocations.map(p=>({...p,p:0}));
+// Detect a custom map handed over from the map editor (map-editor.html).
+let pendingCustomMap=null;
+try{
+  const raw=localStorage.getItem('fogbound-pending-map');
+  if(raw){pendingCustomMap=deserializeMap(raw);applyCustomMapToWorld(pendingCustomMap);game.customMap=pendingCustomMap;game.reset();game.start();}
+}catch(e){console.warn('自定义地图加载失败',e);}
 $('#settings').appendChild($('#editLayout'));$('#editLayout').hidden=!matchMedia('(pointer:coarse)').matches;const layoutEditing=enableLayoutEditor();
 let view='third',keys={},joy={x:0,y:0},held={interact:false,sprint:false,dash:false},tapped={interact:false,dash:false},width=900,height=600,time=0,last=0,cameraAngle=0,cameraPitch=.18,three=null,loading=false;
 const names={top:'2D / 全局视野',iso:'2.5D / 等距跟随',third:'3D / 第三人称'};
@@ -22,7 +29,7 @@ let lanSocket=null,myLanId=null,lanRoomCode=null,lanPeers=new Map(),lanRoster=[]
 let sharedMatch=false;
 let chairState=null;
 let teamActors=[];let lastShockTick=0,shockUntil=0;
-$('#returnRoom').onclick=()=>{if(localMatch){localMatch=null;sharedMatch=false;game.reset();$('#matchResults').hidden=true;showOverlay();return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'return_room'}));};
+$('#returnRoom').onclick=()=>{if(pendingCustomMap){try{localStorage.removeItem('fogbound-pending-map');}catch{}location.reload();return;}if(localMatch){localMatch=null;sharedMatch=false;game.reset();$('#matchResults').hidden=true;showOverlay();return;}if(lanSocket?.readyState===WebSocket.OPEN)lanSocket.send(JSON.stringify({type:'return_room'}));};
 let playMode='single',localMatch=null;
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{
   if(b.dataset.mode==='map'){location.href='map-editor.html';return;}
@@ -371,7 +378,7 @@ let drag=null;$('#stage').addEventListener('pointerdown',e=>{if(e.target===three
 function settings(open){$('#settings').hidden=!open;$('#settingsButton').setAttribute('aria-expanded',String(open));clearInput();if(!open)$('#stage').focus({preventScroll:true});}
 $('#settingsButton').onclick=()=>settings($('#settings').hidden);$('#closeSettings').onclick=()=>settings(false);
 window.addEventListener('keydown',e=>{if(e.key==='Escape')settings($('#settings').hidden);});
-function begin(){if(!three)return;if(game.status!=='ready')game.reset();sharedMatch=false;localMatch=null;game.start();myLanId='local-player';localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}],playMode==='ai',10);if(playMode==='single'&&game.role==='hunter')localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:'hunter',character:game.hunterId},{id:'bot-single',nickname:'人机求生者',role:'survivor',character:'mercenary',bot:true}],false,10);sharedMatch=true;survivorMeshes.forEach(m=>three.scene.remove(m.group));survivorMeshes.clear();chairState=localMatch.chairSnapshot();applyWorld(localMatch.snapshot());$('#overlay').style.display='none';settings(false);clearInput();$('#stage').focus({preventScroll:true});}
+function begin(){if(!three)return;if(game.status!=='ready')game.reset();sharedMatch=false;localMatch=null;game.start();myLanId='local-player';const custom=game.customMap||null;localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:game.role,character:game.role==='hunter'?game.hunterId:game.characterId}],playMode==='ai'||!!custom,10,custom);if(playMode==='single'&&game.role==='hunter')localMatch=new SharedMatch([{id:myLanId,nickname:'你',role:'hunter',character:game.hunterId},{id:'bot-single',nickname:'人机求生者',role:'survivor',character:'mercenary',bot:true}],false,10,custom);sharedMatch=true;survivorMeshes.forEach(m=>three.scene.remove(m.group));survivorMeshes.clear();chairState=localMatch.chairSnapshot();applyWorld(localMatch.snapshot());$('#overlay').style.display='none';settings(false);clearInput();$('#stage').focus({preventScroll:true});}
 $('#start').onclick=begin;$('#restart').onclick=()=>{game.reset();settings(false);clearInput();showOverlay();};$('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('#stage').requestFullscreen();settings(false);}catch{game.message='当前浏览器不支持全屏，请横屏体验';}};
 function showOverlay(){const status=game.status;$('#overlay').style.display='flex';$('#overlay h2').textContent=status==='won'?'成功逃脱':status==='lost'?'演练结束':'沉船林地';$('#overlay p:not(.eyebrow)').innerHTML=status==='ready'?'破译三台密码机，开启闸门逃脱。<br>选择角色，利用建筑窗口和木板脱离追击。':game.message+'<br>可选择不同角色再试一次。';$('#start').textContent=status==='ready'?'进入演练 ↗':'再试一次 ↗';characterMenu();}
 document.querySelectorAll('[data-view]').forEach(btn=>btn.onclick=async()=>{let next=btn.dataset.view;if(next==='third'&&!three){if(loading)return;loading=true;game.message='正在加载 3D 渲染器…';try{await setupThree();}catch(e){game.message='3D 加载失败：请检查网络和 WebGL 支持；2D / 2.5D 仍可玩';$('#cameraHint').textContent=game.message;console.error(e);loading=false;return;}loading=false;}view=next;clearInput();document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('selected',b===btn));canvas.style.display=view==='third'?'none':'block';$('#webgl').style.display=view==='third'?'block':'none';$('#mode').textContent=names[view];$('#cameraHint').textContent=view==='third'?'拖动画面旋转镜头 · 移动随镜头方向':'可随时切换视角，保留对局';resize();settings(false);});
@@ -395,20 +402,19 @@ function drawMinimap(){const w=84,x=width-w-12,y=height-w-260;if(y<140)return;ct
 async function setupThree(){const T=await import('https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js');const renderer=new T.WebGLRenderer({antialias:true,powerPreference:'low-power'});renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.setSize(width,height);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;const scene=new T.Scene();scene.background=new T.Color('#172d30');scene.fog=new T.Fog('#172d30',25,85);const camera=new T.PerspectiveCamera(58,width/height,.1,150);scene.add(new T.HemisphereLight(0xd8e3c1,0x273833,2));const sun=new T.DirectionalLight(0xffddb0,2.7);sun.position.set(-25,55,20);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-60,right:60,top:60,bottom:-60});scene.add(sun);
 function mesh(geo,color,x,y,z,parent=scene){const m=new T.Mesh(geo,new T.MeshStandardMaterial({color,roughness:.95,flatShading:true}));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
 function cube(x,y,z,w,h,d,color,parent){const m=mesh(new T.BoxGeometry(w,h,d),color,x,y,z,parent);if((x===96||x===136)&&color===0x81866b)m.visible=false;return m;}
-cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,.02,50,6,.03,100,0x62624a);
-cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);
+cube(SIZE/2,-.55,SIZE/2,SIZE,.5,SIZE,0x42503b);
+if(!game.customMap){cube(50,-.25,50,100,.5,100,0x42503b);cube(50,.01,50,100,.03,6,0x68674f);cube(50,.02,50,6,.03,100,0x62624a);cube(136,3.5,44,1.5,7,2,0x81866b);cube(136,3.5,56,1.5,7,2,0x81866b);buildArchitecture(T,scene);for(const l of lockerLocations){const group=new T.Group();group.position.set(l.x,0,l.y);scene.add(group);cube(0,1.55,0,1.7,3.1,1.5,0x4c4e40,group);cube(0,1.55,.78,1.5,2.9,.08,0x6b6550,group);cube(.48,1.4,.85,.08,.3,.08,0xc0b38b,group);}}
 walls.filter(w=>!w.factory&&!w.rail&&!w.cottage&&!w.churchProp&&!w.barrelCluster&&!w.brickWall&&!w.redChurchProp).forEach(w=>cube(w.x,1.9,w.y,w.w,3.8,w.d,0x858673));
-buildArchitecture(T,scene);
-for(const l of lockerLocations){const group=new T.Group();group.position.set(l.x,0,l.y);scene.add(group);cube(0,1.55,0,1.7,3.1,1.5,0x4c4e40,group);cube(0,1.55,.78,1.5,2.9,.08,0x6b6550,group);cube(.48,1.4,.85,.08,.3,.08,0xc0b38b,group);}
-for(const [i,c] of chairLocations.entries()){const group=new T.Group();group.name='chair-'+i;group.position.set(c.x,0,c.y);scene.add(group);cube(0,.8,0,1.5,.3,1.2,0x843b46,group);cube(0,1.8,-.45,1.5,2,.25,0x843b46,group);for(const side of [-1,1]){cube(side*.8,1.2,0,.15,.2,1.4,0x6d5b45,group);mesh(new T.CylinderGeometry(.25,.25,2.5,10),0x665d42,side*1.05,1.8,-.45,group);mesh(new T.ConeGeometry(.3,.7,10),0x8e3039,side*1.05,3.4,-.45,group);}cube(0,1.9,-.25,1.6,.18,.12,0x372b28,group);const clock=mesh(new T.CylinderGeometry(.38,.38,.12,12),0xc7b57c,0,3,-.3,group);clock.rotation.x=Math.PI/2;}
-buildOutdoorDetailing(T,scene);
+const activeChairs=(game.customMap&&getActiveCustomWorld()&&getActiveCustomWorld().chairs.length)?getActiveCustomWorld().chairs:chairLocations;
+for(const [i,c] of activeChairs.entries()){const group=new T.Group();group.name='chair-'+i;group.position.set(c.x,0,c.y);scene.add(group);cube(0,.8,0,1.5,.3,1.2,0x843b46,group);cube(0,1.8,-.45,1.5,2,.25,0x843b46,group);for(const side of [-1,1]){cube(side*.8,1.2,0,.15,.2,1.4,0x6d5b45,group);mesh(new T.CylinderGeometry(.25,.25,2.5,10),0x665d42,side*1.05,1.8,-.45,group);mesh(new T.ConeGeometry(.3,.7,10),0x8e3039,side*1.05,3.4,-.45,group);}cube(0,1.9,-.25,1.6,.18,.12,0x372b28,group);const clock=mesh(new T.CylinderGeometry(.38,.38,.12,12),0xc7b57c,0,3,-.3,group);clock.rotation.x=Math.PI/2;}
+buildOutdoorDetailing(T,scene,!game.customMap);
 const upperMeshes=upperFloors.map(r=>cube(r.x,3.85,r.y,r.w,.3,r.d,0x596c66));upperMeshes.forEach(m=>m.name='upperFloor');
 game.exits.forEach(e=>{cube(e.x,3.5,e.y-6,1.5,7,2,0x7a826d);cube(e.x,3.5,e.y+6,1.5,7,2,0x7a826d);const m=cube(e.x,2.5,e.y,1,5,10,0x646e50);m.name='escapeGate';m.userData.exit=e;});
 for(const r of ramps){for(let i=0;i<24;i++){const depth=r.d/24,h=(24-i)/24*4;cube(r.x,h/2,r.top+(i+.5)*depth,r.w,h,depth,0x8d8770);}}
 const redShape=new T.Shape();redShape.moveTo(0,0);for(let i=0;i<=24;i++){const a=-.55+i/24*1.1;redShape.lineTo(Math.sin(a)*9,-Math.cos(a)*9);}redShape.lineTo(0,0);const redMesh=new T.Mesh(new T.ShapeGeometry(redShape),new T.MeshBasicMaterial({color:0xf02a20,transparent:true,opacity:.25,depthWrite:false,side:T.DoubleSide}));const redGroup=new T.Group();redGroup.name='hunterRedLight';redMesh.rotation.x=-Math.PI/2;redGroup.add(redMesh);scene.add(redGroup);
 const smokeMesh=new T.Mesh(new T.SphereGeometry(1,12,8),new T.MeshBasicMaterial({color:0xb4cece,transparent:true,opacity:.24,depthWrite:false}));smokeMesh.name='skillSmoke';smokeMesh.visible=false;scene.add(smokeMesh);
 // Environment detailing: Gothic style weathered vegetation, low poly mossy boulders, and iron street lamps.
-function buildOutdoorDetailing(T,scene){
+function buildOutdoorDetailing(T,scene,withLamps=true){
   const trunkMat=new T.MeshStandardMaterial({color:0x362b21,roughness:.95}),rockMat=new T.MeshStandardMaterial({color:0x5e6560,roughness:.92,flatShading:true}),mossMat=new T.MeshStandardMaterial({color:0x415438,roughness:.95}),ironMat=new T.MeshStandardMaterial({color:0x262f2c,metalness:.7,roughness:.4});
   for(const o of obstacles){
     if(o.type==='tree'){
@@ -432,7 +438,7 @@ function buildOutdoorDetailing(T,scene){
     }
   }
   // Iron lamp posts scattered across the grounds for vintage gothic cemetery vibe.
-  for(const [lx,lz] of [[52,48],[148,52],[45,115],[152,142],[98,42],[100,154]]){
+  if(withLamps)for(const [lx,lz] of [[52,48],[148,52],[45,115],[152,142],[98,42],[100,154]]){
     const pole=new T.Mesh(new T.CylinderGeometry(.12,.18,4.2,6),ironMat);pole.position.set(lx,2.1,lz);scene.add(pole);
     const arm=new T.Mesh(new T.BoxGeometry(1,.12,.12),ironMat);arm.position.set(lx+.35,4.1,lz);scene.add(arm);
     const lantern=new T.Mesh(new T.OctahedronGeometry(.35,0),new T.MeshStandardMaterial({color:0xffd99b,emissive:0xffa834,emissiveIntensity:1.8}));lantern.position.set(lx+.7,3.8,lz);scene.add(lantern);
@@ -477,7 +483,7 @@ function buildCipherModel(T,g,group){
 const generators=game.generators.map(g=>{
   const group=new T.Group();group.position.set(g.x,0,g.y);scene.add(group);
   return buildCipherModel(T,g,group);
-});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);const gate=cube(96,2.5,50,1,5,10,0x657153);
+});const pallets=game.pallets.map(p=>cube(p.x,1.5,p.y,4,3,.6,0xb59b69));game.windows.forEach(w=>{cube(w.x-2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x+2.2,1.9,w.y,.6,3.8,1,0x909479);cube(w.x,1.2,w.y,4,.35,.7,0xc2b181);cube(w.x,3.8,w.y,4,.35,1,0x909479);});let gate;if(game.customMap){const e=game.exits[0];gate=e?cube(e.x,2.5,e.y,1,5,10,0x657153):cube(0,-500,0,1,1,1,0x657153);gate.visible=false;}else{cube(96,3.5,44,1.5,7,2,0x81866b);cube(96,3.5,56,1.5,7,2,0x81866b);cube(96,7,50,1.5,1,14,0x81866b);gate=cube(96,2.5,50,1,5,10,0x657153);}
 function character(color,hunter){
   const group=new T.Group();scene.add(group);
   const body=cube(0,1.9,0,1.1,1.3,.7,color,group);
@@ -1144,5 +1150,5 @@ function updateCamera(){
   camera.position.y=Math.max((a.z||0)+.5,camera.position.y);
   camera.lookAt(target);
 }
-async function loadGame(){canvas.style.display='none';$('#webgl').style.display='block';$('#start').disabled=true;$('#start').textContent='正在加载 3D…';try{await setupThree();$('#start').disabled=false;$('#start').textContent='开始演练';}catch(error){console.error(error);$('#overlay p:not(.eyebrow)').textContent='3D 加载失败，请检查网络或浏览器 WebGL 支持。';$('#start').textContent='重试加载';$('#start').disabled=false;$('#start').onclick=async()=>{await loadGame();if(three)$('#start').onclick=begin;};}}
+async function loadGame(){canvas.style.display='none';$('#webgl').style.display='block';$('#start').disabled=true;$('#start').textContent='正在加载 3D…';try{await setupThree();$('#start').disabled=false;$('#start').textContent='开始演练';if(pendingCustomMap){playMode='ai';game.role='survivor';begin();}}catch(error){console.error(error);$('#overlay p:not(.eyebrow)').textContent='3D 加载失败，请检查网络或浏览器 WebGL 支持。';$('#start').textContent='重试加载';$('#start').disabled=false;$('#start').onclick=async()=>{await loadGame();if(three)$('#start').onclick=begin;};}}
 resize();loadGame();requestAnimationFrame(frame);

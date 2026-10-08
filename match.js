@@ -1,4 +1,4 @@
-import {Game,distance} from './game.js';
+import {Game,distance,applyCustomMapToWorld,clearCustomMap,pickCustomSpawns} from './game.js';
 import {HunterBrain,sightClear} from './hunter-ai.js';
 import {ChairSystem} from './chairs.js';
 import {HunterSkills} from './hunter-skills.js';
@@ -59,24 +59,32 @@ export function generateScatteredSpawns(survivorCount = 4) {
 }
 
 export class SharedMatch{
-  constructor(roster,fillBots,prepTime=0){
-    this.world=new Game();this.world.start();this.world.generators=cipherLocations.map(p=>({...p,p:0}));this.time=300;this.status='playing';
+  constructor(roster,fillBots,prepTime=0,customMap=null){
+    if(customMap)applyCustomMapToWorld(customMap);else clearCustomMap();
+    this.customMap=customMap||null;
+    this.world=new Game();this.world.start();if(!customMap)this.world.generators=cipherLocations.map(p=>({...p,p:0}));this.time=300;this.status='playing';
     const members=[...roster];if(!members.some(p=>p.role==='hunter'))members.push({id:'bot-hunter',nickname:'人机监管者',role:'hunter',character:'ripper',bot:true});
     if(fillBots)while(members.filter(p=>p.role==='survivor').length<4)members.push({id:'bot-'+members.length,nickname:'人机求生者 '+members.length,role:'survivor',character:'mercenary',bot:true});
     const survTotal = members.filter(p=>p.role==='survivor').length;
-    const spawns = generateScatteredSpawns(Math.max(1, survTotal));
+    let spawns;
+    if(customMap){
+      const pts=pickCustomSpawns(this.world.customWorld, Math.max(2, survTotal+1));
+      spawns={hunter:pts[pts.length-1]||{x:this.world.customWorld.size.w/2,y:this.world.customWorld.size.h/2},survivors:pts.slice(0,Math.max(1,survTotal))};
+    }else{
+      spawns=generateScatteredSpawns(Math.max(1, survTotal));
+    }
     let survIdx=0;
     this.actors=members.map(p=>{
       const sim=new Game();
       sim.characterId=p.role==='survivor'?p.character:'mercenary';
       sim.hunterId=p.role==='hunter'?p.character:'ripper';
       sim.start();
-      const pos=p.role==='hunter'?{...spawns.hunter}:{...(spawns.survivors[survIdx++]||{x:40,y:70})};
+      const pos=p.role==='hunter'?{...spawns.hunter}:{...(spawns.survivors[survIdx++]||spawns.survivors[0]||{x:40,y:70})};
       Object.assign(p.role==='hunter'?sim.hunter:sim.player,pos);
       sim.generators=this.world.generators;sim.pallets=this.world.pallets;sim.exits=this.world.exits;sim.exit=this.world.exit;
       return {...p,sim,input:{x:0,y:0},seen:0};
     });
-    this.tick=0;this.hunterBrain=new HunterBrain();this.chairSystem=new ChairSystem();this.hunterSkills=new HunterSkills();this.rules=new StandardRules();this.interactions=new MapInteractions();this.previousProgress=this.world.generators.map(g=>g.p);this.prepTime=prepTime;
+    this.tick=0;this.hunterBrain=new HunterBrain();this.chairSystem=new ChairSystem(customMap?this.world.customWorld.chairs.map(c=>({...c})):undefined);this.hunterSkills=new HunterSkills();this.rules=new StandardRules();this.interactions=new MapInteractions();this.previousProgress=this.world.generators.map(g=>g.p);this.prepTime=prepTime;
   }
   input(id,input){const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a)return;a.input={x:Math.max(-1,Math.min(1,Number(input.x)||0)),y:Math.max(-1,Math.min(1,Number(input.y)||0)),angle:Number.isFinite(input.angle)?Number(input.angle):undefined,interact:!!input.interact,dash:!!input.dash,skill:!!input.skill,sneak:!!input.sneak,progSpeedToggle:!!input.progSpeedToggle,progStun:!!input.progStun,progTeleport:input.progTeleport||null};a.seen=this.tick;}
   action(id,action,index){if(['locker','hunter_vault'].includes(action)){this.interactions.action(this,id,action,index);return;}const a=this.actors.find(a=>a.id===id&&!a.bot);if(!a||a.role!=='survivor'||a.hidden!=null||!['healthy','injured'].includes(actorState(a,this.chairSystem)))return;if(action==='decode')a.sim.startDecode(this.world.generators[index]);if(action==='calibrate')a.sim.calibrate();}

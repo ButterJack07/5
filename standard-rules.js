@@ -5,7 +5,7 @@ export function actorState(a,chairs){if(a.eliminated)return 'eliminated';if(a.es
 export class StandardRules{
   constructor(){this.powered=false;this.detention=0;this.hatch=null;this.recovery=new Map();this.struggle=0;}
   update(m,dt){const survivors=m.actors.filter(a=>a.role==='survivor'),h=m.actors.find(a=>a.role==='hunter'),decoded=m.world.generators.filter(g=>g.p>=100).length;this.detention=Math.max(0,this.detention-dt);
-    if(decoded>=2&&!this.hatch)this.hatch={...hatchLocations[Math.floor(Math.random()*3)],open:false};
+    if(decoded>=2&&!this.hatch){const spots=(m.world.customHatch&&m.world.customHatch.length)?m.world.customHatch:hatchLocations;this.hatch={...spots[Math.floor(Math.random()*spots.length)],open:false};}
     if(decoded>=5&&!this.powered){this.powered=true;this.detention=60;for(const a of survivors)if(['healthy','injured','downed'].includes(actorState(a,m.chairSystem))){a.sim.health=Math.min(2,a.sim.health+1);a.sim.player.health=a.sim.health;a.sim.invincible=1;}}
     const active=survivors.filter(a=>!a.eliminated&&!a.escaped);if(this.hatch)this.hatch.open=active.length===1;
     for(const a of active){const state=actorState(a,m.chairSystem),input=m.tick-a.seen<=10||a.bot?a.input:{};

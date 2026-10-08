@@ -345,15 +345,21 @@ function refreshLibrary() {
     const row = document.createElement('div');
     row.className = 'mapCard';
     row.innerHTML = `<div class="info"><b>${m.name}</b><small>${GRID_PRESETS[m.size?.key]?.label || (m.size?.cols + '×' + m.size?.rows)} · 组件 ${m.tiles} · 建筑 ${m.structures} · 更新 ${new Date(m.updatedAt).toLocaleString()}</small></div>`;
-    const play = document.createElement('button'); play.textContent = '▶️ 体验'; play.style.background = '#d6ed91'; play.style.color = '#15211a';
-    play.onclick = () => startPlay(m.id);
+    const play = document.createElement('button'); play.textContent = '▶️ 进入3D对局'; play.style.background = '#d6ed91'; play.style.color = '#15211a';
+    play.onclick = () => {
+      const full = loadMapLocal(m.id); if (!full) return;
+      try { localStorage.setItem('fogbound-pending-map', serializeMap(full)); } catch (e) { alert('无法保存地图到本地存储'); return; }
+      location.href = 'index.html';
+    };
+    const preview = document.createElement('button'); preview.textContent = '🔍 预览';
+    preview.onclick = () => startPlay(m.id);
     const edit = document.createElement('button'); edit.textContent = '✏️ 编辑';
     edit.onclick = () => { const full = loadMapLocal(m.id); if (full) { map = full; history = []; future = []; switchTab('make'); fitView(); render(); } };
     const del = document.createElement('button'); del.textContent = '🗑️';
     del.onclick = () => { if (confirm('删除地图 ' + m.name + '？')) { deleteMapLocal(m.id); refreshLibrary(); } };
     const exp = document.createElement('button'); exp.textContent = '⬇️';
     exp.onclick = () => downloadMap(loadMapLocal(m.id));
-    row.append(play, edit, exp, del);
+    row.append(play, preview, edit, exp, del);
     root.appendChild(row);
   }
 }

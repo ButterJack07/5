@@ -1,7 +1,7 @@
 import {distance} from './game.js';
 export const chairLocations=[{x:42,y:82},{x:65,y:108},{x:133,y:111},{x:145,y:54},{x:175,y:151}];
 export class ChairSystem{
-  constructor(){this.chairs=chairLocations.map((c,i)=>({...c,id:i,occupant:null,progress:0}));this.carried=null;this.rescues=new Map();this.heals=new Map();}
+  constructor(locations){const list=Array.isArray(locations)&&locations.length?locations:chairLocations;this.chairs=list.map((c,i)=>({...c,id:i,occupant:null,progress:0}));this.carried=null;this.rescues=new Map();this.heals=new Map();}
   eliminate(actor){actor.eliminated=true;actor.seated=null;actor.eliminatedAt=Date.now();actor.sim.health=0;actor.sim.player.health=0;for(const c of this.chairs)if(c.occupant===actor.id)c.occupant=null;}
   hang(actor,chair){if(chair.occupant!==null||actor.eliminated)return false;this.carried=null;if(actor.nextChair>=60){this.eliminate(actor);return true;}actor.sim.health=0;chair.occupant=actor.id;chair.progress=actor.nextChair||0;actor.seated=chair.id;Object.assign(actor.sim.player,{x:chair.x,y:chair.y,z:0});return true;}
   rescue(rescuer,chair){const victim=this.actors.find(a=>a.id===chair.occupant);if(!victim)return;rescuer.rescueCount=(rescuer.rescueCount||0)+1;victim.nextChair=chair.progress>=30?60:30;victim.seated=null;victim.sim.health=1;victim.sim.player.health=1;victim.sim.invincible=0;chair.occupant=null;chair.progress=0;this.rescues.delete(rescuer.id);}
