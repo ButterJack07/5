@@ -9,10 +9,10 @@ import {SurvivorBrain} from './survivor-ai.js';
 import {interruptInteraction} from './terror-shock.js';
 
 export const survivorSpawnPool = [
-  {x: 32, y: 78},   // 西区木屋近郊
+  {x: 40, y: 72},   // 西区木屋东侧空地
   {x: 136, y: 48},  // 北区废弃马厩旁
   {x: 164, y: 125}, // 东区石舍空地
-  {x: 62, y: 152},  // 南区石匠工棚旁
+  {x: 70, y: 160},  // 南区工棚南侧空地
   {x: 28, y: 35},   // 西北荒林
   {x: 168, y: 165}, // 东南旷野
   {x: 36, y: 115},  // 西南废墟
@@ -108,8 +108,8 @@ export class SharedMatch{
     input.skill=!this.chairSystem.carried&&(!!hunter.skillHeld||!!input.skill);this.hunterSkills.update(this,hunter,input,dt);
     for(const a of survivors){a._hitVault=a.sim.vault?{...a.sim.vault,from:{...a.sim.vault.from},to:{...a.sim.vault.to}}:null;a._hitInteraction=!!a.sim.vault||this.chairSystem.rescues.has(a.id);a._hitHealth=a.sim.health;}
     const chairInteraction=this.chairSystem.carried||this.hunterSkills.rocket>0||survivors.some(a=>a.sim.health<=0&&!a.eliminated&&a.seated==null&&distance(a.sim.player,h.hunter)<3);
-    if(!h.attack&&h.stun===0){if(!(hunter.bot&&this.chairSystem.carried))h.move(h.hunter,(input.x||0)*11.2*dt,(input.y||0)*11.2*dt);if(input.dash||input.interact&&!chairInteraction)h.beginAttack(!!input.interact);}
-    else if(h.attack?.phase==='windup'&&h.stun===0){const target=targets.find(a=>sightClear(h,h.hunter,a.sim.player));if(target&&hunter.bot){const dx=target.sim.player.x-h.hunter.x,dy=target.sim.player.y-h.hunter.y,d=Math.hypot(dx,dy)||1;h.hunter.angle=Math.atan2(dx,dy);h.attack.angle=h.hunter.angle;h.move(h.hunter,dx/d*Math.min(Math.max(0,d-1.65),11.2*dt),dy/d*Math.min(Math.max(0,d-1.65),11.2*dt));}else if(!hunter.bot)h.move(h.hunter,(input.x||0)*6*dt,(input.y||0)*6*dt);}
+    if(!h.attack&&h.stun===0){if(!(hunter.bot&&this.chairSystem.carried))h.move(h.hunter,(input.x||0)*7.8*dt,(input.y||0)*7.8*dt);if(input.dash||input.interact&&!chairInteraction)h.beginAttack(!!input.interact);}
+    else if(h.attack?.phase==='windup'&&h.stun===0){const target=targets.find(a=>sightClear(h,h.hunter,a.sim.player));if(target&&hunter.bot){const dx=target.sim.player.x-h.hunter.x,dy=target.sim.player.y-h.hunter.y,d=Math.hypot(dx,dy)||1;h.hunter.angle=Math.atan2(dx,dy);h.attack.angle=h.hunter.angle;h.move(h.hunter,dx/d*Math.min(Math.max(0,d-1.65),7.8*dt),dy/d*Math.min(Math.max(0,d-1.65),7.8*dt));}else if(!hunter.bot)h.move(h.hunter,(input.x||0)*5*dt,(input.y||0)*5*dt);}
     if(h.attack){const target=targets.find(a=>h.inAttackCone(a.sim.player)&&sightClear(h,h.hunter,a.sim.player));if(target){h.player=target.sim.player;h.survivors=[h.player];h.health=target.sim.health;h.shield=target.sim.shield;h.invincible=target.sim.invincible||0;h.player.invincible=h.invincible;h.player.health=target.sim.health;const previousHealth=target.sim.health,phase=h.attack.phase;h.updateAttack(dt);if(phase==='windup'&&h.attack?.phase==='recovery'){target.sim.health=h.player.health;target.sim.shield=h.shield;target.sim.invincible=h.player.invincible||0;if(target.sim.health<previousHealth)target.sim.stopDecode();}}else{h.player={x:-1000,y:-1000,z:0};h.survivors=[];h.invincible=0;h.updateAttack(dt);}}
     for(const a of survivors){if(a._hitInteraction&&a.sim.health<a._hitHealth){if(interruptInteraction(this,a)){h.message='恐惧震慑';this.shock={tick:this.tick,victim:a.id};}}a._hitInteraction=false;a._previousHealth=a.sim.health;}
     for(const a of survivors){const g=a.sim.decoding,index=this.world.generators.indexOf(g);if(index>=0){const workers=survivors.filter(p=>p.sim.decoding===g).length;a.decodeContribution=(a.decodeContribution||0)+Math.max(0,g.p-this.previousProgress[index])/Math.max(1,workers);}}this.previousProgress=this.world.generators.map(g=>g.p);

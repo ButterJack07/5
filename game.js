@@ -201,10 +201,68 @@ export class Game{
   calibrate(){if(!this.calibration||!this.decoding||this.status!=='playing')return false;const p=this.calibration.elapsed/this.calibration.duration;if(p>=.58&&p<=.76){const perfect=p>=.65&&p<=.69;this.decoding.p=Math.min(100,this.decoding.p+(perfect?6:3));this.message=perfect?'完美校准！':'校准成功';this.calibration=null;this.nextCalibration=3+Math.random()*3;return true;}this.failCalibration();return false;}
   updateDecode(dt){if(!this.decoding)return;if(distance(this.player,this.decoding)>=6){this.stopDecode();return;}if(this.calibration){this.calibration.elapsed+=dt;if(this.calibration.elapsed>=this.calibration.duration)this.failCalibration();return;}this.decoding.p=Math.min(100,this.decoding.p+dt*6);if(this.decoding.p>=100){this.message='密码机破译完成';this.alert=8;this.stopDecode();return;}this.nextCalibration-=dt;if(this.nextCalibration<=0){this.calibration={elapsed:0,duration:1.8};this.message='校准！在亮色区域点击或按空格';}}
   get nearby(){const powered=this.powered===3||this.generators.filter(g=>g.p>=100).length>=5||this.exits.some(e=>e.p>0);const objects=[...this.generators.filter(g=>g.p<100).map(g=>({...g,ref:g,type:'generator'})),...this.pallets.filter(p=>!p.broken).map(p=>({...p,ref:p,type:p.down?'palletVault':'pallet'})),...this.windows.map(w=>({...w,ref:w,type:'window'})),...(powered?this.exits.map(e=>({...e,ref:e,type:'exit'})):[])];return objects.filter(o=>Math.abs((o.z||0)-(this.player.z||0))<1.5).sort((a,b)=>distance(a,this.player)-distance(b,this.player))[0];}
-  get collisionRects(){const z=this.collisionHeight||0;return [...walls,...obstacles.filter(o=>o.type==='rock').map(o=>({...o,h:o.h})),...this.pallets.filter(p=>p.down&&!p.broken).map(p=>({x:p.x,y:p.y,w:4,d:1})),...this.windows.map(w=>({x:w.x,y:w.y,w:4,d:1}))].filter(w=>z<(w.base||0)+(w.h||2)&&z+2.8>(w.base||0));}
+  get collisionRects(){
+    const z=this.collisionHeight||0;
+    if(!this._staticColliders){
+      this._staticColliders=[
+        ...walls,
+        ...obstacles.filter(o=>o.type==='rock').map(o=>({...o,h:o.h}))
+      ];
+    }
+    const dynamic=[
+      ...this.pallets.filter(p=>p.down&&!p.broken).map(p=>({x:p.x,y:p.y,w:4,d:1})),
+      ...this.windows.map(w=>({x:w.x,y:w.y,w:4,d:1}))
+    ];
+    return [...this._staticColliders,...dynamic].filter(w=>z<(w.base||0)+(w.h||2)&&z+2.8>(w.base||0));
+  }
   blocked(x,y,r=1){return x<2||y<2||x>SIZE-2||y>SIZE-2||obstacles.filter(o=>o.type==='tree').some(o=>Math.hypot(x-o.x,y-o.y)<o.r+r-.00001)||this.collisionRects.some(w=>{const nx=Math.max(w.x-w.w/2,Math.min(w.x+w.w/2,x)),ny=Math.max(w.y-w.d/2,Math.min(w.y+w.d/2,y));return Math.hypot(x-nx,y-ny)<r-.00001;});}
-  resolveCollision(actor){const r=1,epsilon=.0001;actor.x=Math.max(2,Math.min(SIZE-2,actor.x));actor.y=Math.max(2,Math.min(SIZE-2,actor.y));for(let pass=0;pass<5;pass++){for(const o of obstacles){const dx=actor.x-o.x,dy=actor.y-o.y,d=Math.hypot(dx,dy),min=r+o.r;if(d<min){actor.x=o.x+(d?dx/d:1)*(min+epsilon);actor.y=o.y+(d?dy/d:0)*(min+epsilon);}}for(const w of this.collisionRects){const left=w.x-w.w/2,right=w.x+w.w/2,top=w.y-w.d/2,bottom=w.y+w.d/2,nx=Math.max(left,Math.min(right,actor.x)),ny=Math.max(top,Math.min(bottom,actor.y)),dx=actor.x-nx,dy=actor.y-ny,d=Math.hypot(dx,dy);if(d>0&&d<r){actor.x=nx+dx/d*(r+epsilon);actor.y=ny+dy/d*(r+epsilon);}else if(d===0){const sides=[{d:actor.x-left,x:left-r-epsilon,y:actor.y},{d:right-actor.x,x:right+r+epsilon,y:actor.y},{d:actor.y-top,x:actor.x,y:top-r-epsilon},{d:bottom-actor.y,x:actor.x,y:bottom+r+epsilon}].sort((a,b)=>a.d-b.d);actor.x=sides[0].x;actor.y=sides[0].y;}}}actor.x=Math.max(2,Math.min(SIZE-2,actor.x));actor.y=Math.max(2,Math.min(SIZE-2,actor.y));}
-  move(actor,x,y){actor.z=actor.z||0;this.collisionHeight=actor.z;const n=Math.max(1,Math.ceil(Math.hypot(x,y)/.2));for(let i=0;i<n;i++){const old={x:actor.x,y:actor.y};if(map.canStep(actor,actor.x+x/n,actor.y+y/n)){actor.x+=x/n;actor.y+=y/n;this.resolveCollision(actor);const nz=groundHeight(actor.x,actor.y,actor.z);if(actor.z-nz>.6)actor.falling=true;else if(!actor.falling)actor.z=nz;}else Object.assign(actor,old);this.collisionHeight=actor.z;}this.collisionHeight=0;if(x||y)actor.angle=Math.atan2(x,y);}
+  resolveCollision(actor){
+    const r=1,epsilon=.0001;
+    actor.x=Math.max(2,Math.min(SIZE-2,actor.x));
+    actor.y=Math.max(2,Math.min(SIZE-2,actor.y));
+    const ax=actor.x,ay=actor.y;
+    const nearbyObs=obstacles.filter(o=>Math.abs(ax-o.x)<5&&Math.abs(ay-o.y)<5);
+    const nearbyRects=this.collisionRects.filter(w=>Math.abs(ax-w.x)<6&&Math.abs(ay-w.y)<6);
+    for(let pass=0;pass<2;pass++){
+      for(const o of nearbyObs){
+        const dx=actor.x-o.x,dy=actor.y-o.y,d=Math.hypot(dx,dy),min=r+o.r;
+        if(d<min){
+          actor.x=o.x+(d?dx/d:1)*(min+epsilon);
+          actor.y=o.y+(d?dy/d:0)*(min+epsilon);
+        }
+      }
+      for(const w of nearbyRects){
+        const left=w.x-w.w/2,right=w.x+w.w/2,top=w.y-w.d/2,bottom=w.y+w.d/2,nx=Math.max(left,Math.min(right,actor.x)),ny=Math.max(top,Math.min(bottom,actor.y)),dx=actor.x-nx,dy=actor.y-ny,d=Math.hypot(dx,dy);
+        if(d>0&&d<r){
+          actor.x=nx+dx/d*(r+epsilon);
+          actor.y=ny+dy/d*(r+epsilon);
+        }else if(d===0){
+          const sides=[{d:actor.x-left,x:left-r-epsilon,y:actor.y},{d:right-actor.x,x:right+r+epsilon,y:actor.y},{d:actor.y-top,x:actor.x,y:top-r-epsilon},{d:bottom-actor.y,x:actor.x,y:bottom+r+epsilon}].sort((a,b)=>a.d-b.d);
+          actor.x=sides[0].x;actor.y=sides[0].y;
+        }
+      }
+    }
+    actor.x=Math.max(2,Math.min(SIZE-2,actor.x));
+    actor.y=Math.max(2,Math.min(SIZE-2,actor.y));
+  }
+  move(actor,x,y){
+    actor.z=actor.z||0;
+    this.collisionHeight=actor.z;
+    const n=Math.max(1,Math.ceil(Math.hypot(x,y)/.4));
+    for(let i=0;i<n;i++){
+      const old={x:actor.x,y:actor.y};
+      if(map.canStep(actor,actor.x+x/n,actor.y+y/n)){
+        actor.x+=x/n;actor.y+=y/n;
+        this.resolveCollision(actor);
+        const nz=groundHeight(actor.x,actor.y,actor.z);
+        if(actor.z-nz>.6)actor.falling=true;
+        else if(!actor.falling)actor.z=nz;
+      }else Object.assign(actor,old);
+      this.collisionHeight=actor.z;
+    }
+    this.collisionHeight=0;
+    if(x||y)actor.angle=Math.atan2(x,y);
+  }
   updateFalls(dt){for(const actor of [this.player,this.hunter]){if(!actor.falling)continue;actor.fallSpeed=(actor.fallSpeed||0)+24*dt;const floor=groundHeight(actor.x,actor.y,0);actor.z=Math.max(floor,actor.z-actor.fallSpeed*dt);if(actor.z<=floor){actor.falling=false;actor.fallSpeed=0;this.collisionHeight=floor;this.resolveCollision(actor);this.collisionHeight=0;}}}
   separateActors(){if(this.vault||Math.abs((this.player.z||0)-(this.hunter.z||0))>1.5)return;const dx=this.hunter.x-this.player.x,dy=this.hunter.y-this.player.y,d=Math.hypot(dx,dy),min=1.65;if(d>=min)return;const nx=d?dx/d:Math.sin(this.hunter.angle||0),ny=d?dy/d:Math.cos(this.hunter.angle||0);this.move(this.hunter,nx*(min-d),ny*(min-d));}
   dash(x=0,y=0){
@@ -324,7 +382,7 @@ export class Game{
     else if(this.dashRemaining>0){const step=Math.min(dt,this.dashRemaining),d=this.dashDirection,n=Math.ceil(step*26/.2);for(let i=0;i<n;i++){const nx=this.player.x+d.x*step*26/n,ny=this.player.y+d.y*step*26/n;if(this.blocked(nx,ny)){this.dashRemaining=0;break;}this.player.x=nx;this.player.y=ny;}this.dashRemaining=Math.max(0,this.dashRemaining-step);if(this.dashRemaining<.00001)this.dashRemaining=0;}
     else if(!dropping){
       if(this.decoding&&len>.1)this.stopDecode();
-      const speed=(this.invincible>0?18:this.health===1?9:10)*(this.vaultBoost>0?1.3:1)*(this.sneak?0.55:1);
+      const speed=(this.invincible>0?12:this.health===1?5.4:6.5)*(this.vaultBoost>0?1.3:1)*(this.sneak?0.55:1);
       this.move(this.player,x*speed*dt,y*speed*dt);
     }
     this.updateDecode(dt);const near=this.nearby,interaction=!!input.interact;this.interacting=false;if(!locked&&interaction&&near&&distance(near,this.player)<6){this.interacting=true;if(near.type==='pallet'&&!this.lastInteract&&distance(near,this.player)<3.5){near.ref.down=true;near.ref.drop=.4;this.message='放下木板';if(distance(near,this.hunter)<4){this.stun=3;this.message='木板命中！';}this.pathTimer=0;}else if((near.type==='window'||near.type==='palletVault')&&!this.lastInteract)this.beginVault(near);else if(len<.1&&near.type==='heal'){this.healProgress=Math.min(100,this.healProgress+dt*12.5);if(this.healProgress>=100){this.health=2;this.healProgress=0;this.message='包扎完成';}}else if(near.type==='generator'&&!this.lastInteract)this.startDecode(near.ref);else if(len<.1&&near.type==='exit'){near.ref.p=Math.min(100,near.ref.p+dt*25);if(near.ref.p===100)this.message='闸门已开启';}}this.lastInteract=interaction;
@@ -382,12 +440,12 @@ export class Game{
         let next=this.path[0]||target;
         if(distance(next,this.hunter)<1){this.path.shift();next=this.path[0]||target;}
         const dx=next.x-this.hunter.x,dy=next.y-this.hunter.y,l=Math.hypot(dx,dy)||1;
-        this.move(this.hunter,dx/l*dt*(this.chasing?11.2:6),dy/l*dt*(this.chasing?11.2:6));
+        this.move(this.hunter,dx/l*dt*(this.chasing?7.8:5.2),dy/l*dt*(this.chasing?7.8:5.2));
       }
     }
     if(this.role==='hunter'&&this.stun===0&&!this.attack){
       const h=this.hunterInput||{},l=Math.hypot(h.x||0,h.y||0)||1;
-      this.move(this.hunter,(h.x||0)/Math.max(1,l)*11.2*dt,(h.y||0)/Math.max(1,l)*11.2*dt);
+      this.move(this.hunter,(h.x||0)/Math.max(1,l)*7.8*dt,(h.y||0)/Math.max(1,l)*7.8*dt);
       if(h.dash)this.beginAttack(false); // Quick light attack
       else if(h.interact)this.beginAttack(true); // Charged heavy attack (wider reach, longer windup)
     }

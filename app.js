@@ -451,14 +451,20 @@ function drawThree(dt){
   for(const [visual,actor] of [[player,game.player],[hunter,game.hunter]]){
     const v=visual===player?game.vault:null,t=v?v.elapsed/v.duration:0,lift=v?Math.sin(t*Math.PI)*.75:0;
     const targetX=actor.x,targetZ=actor.y,targetY=(actor.z||0)+lift;
-    if(visual.group.position.lengthSq()===0||Math.hypot(visual.group.position.x-targetX,visual.group.position.z-targetZ)>4){
+    const isControlled=(visual===player&&game.role!=='hunter')||(visual===hunter&&game.role==='hunter');
+    if(isControlled){
       visual.group.position.set(targetX,targetY,targetZ);
+      visual.group.rotation.y=actor.angle||0;
     }else{
-      visual.group.position.x+=(targetX-visual.group.position.x)*lerpFactor;
-      visual.group.position.y+=(targetY-visual.group.position.y)*lerpFactor;
-      visual.group.position.z+=(targetZ-visual.group.position.z)*lerpFactor;
+      if(visual.group.position.lengthSq()===0||Math.hypot(visual.group.position.x-targetX,visual.group.position.z-targetZ)>4){
+        visual.group.position.set(targetX,targetY,targetZ);
+      }else{
+        visual.group.position.x+=(targetX-visual.group.position.x)*lerpFactor;
+        visual.group.position.y+=(targetY-visual.group.position.y)*lerpFactor;
+        visual.group.position.z+=(targetZ-visual.group.position.z)*lerpFactor;
+      }
+      visual.group.rotation.y+=(actor.angle-visual.group.rotation.y)*lerpFactor;
     }
-    visual.group.rotation.y+=(actor.angle-visual.group.rotation.y)*lerpFactor;
     visual.group.rotation.x=v?Math.sin(t*Math.PI)*.4:0;
 
     const moving=game.status==='playing'&&(visual===hunter?game.stun===0:game.dashRemaining>0||Math.hypot(input.x,input.y)>.1);
