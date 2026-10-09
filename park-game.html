@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>废弃游乐场 · 微像素模拟</title>
+<link rel="stylesheet" href="style.css">
+<style>
+body{margin:0;background:#18282c;color:#edf1e5;font-family:'PingFang SC','Microsoft YaHei',sans-serif;overflow:hidden}
+#park{display:block;width:100vw;height:100dvh;image-rendering:pixelated;touch-action:none}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}#labels span{position:absolute;transform:translate(-50%,-100%);font-size:12px;white-space:nowrap;text-shadow:0 1px 3px #102524;background:#15292899;padding:2px 5px;border-radius:3px}
+#radar{position:fixed;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));width:108px;height:108px;border:1px solid #b3c5ae70;border-radius:50%;background:#14272bd4;box-shadow:0 2px 14px #0004;image-rendering:auto;pointer-events:none}
+#statusBar{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));max-width:min(62vw,450px);background:#13251cbb;padding:9px 12px;border:1px solid #b5c39455;border-radius:6px;font-size:12px}
+#hud{line-height:1.6;color:#d6ed91}#teamStatus{position:static;display:flex;margin-top:6px;gap:8px;background:none;padding:0}#teamStatus .teamMember{width:62px}#teamStatus .teamPortrait{width:42px;height:42px}#teamStatus .teamName{font-size:10px}#teamStatus .teamLabel{font-size:10px}
+button,a{font:inherit;color:inherit}button{cursor:pointer}#kit{position:fixed;right:max(22px,env(safe-area-inset-right));top:48%;transform:translateY(-50%);width:76px;height:76px;border-radius:50%;border:2px solid #d1d9b88c;background:#152d2dbb;display:grid;place-items:center;touch-action:none;box-shadow:inset 0 0 0 6px #cad6b810}#kit svg{width:36px;height:36px}#kit:disabled{opacity:.38}#kit small{position:absolute;bottom:8px;font-size:10px}
+#joystick{position:fixed;left:max(28px,env(safe-area-inset-left));bottom:max(28px,env(safe-area-inset-bottom));width:120px;height:120px;border-radius:50%;border:1px solid #d1ddc75e;background:#c0d2c21c;touch-action:none}#nub{position:absolute;left:38px;top:38px;width:44px;height:44px;border-radius:50%;background:#d5e1d36b;border:1px solid #e9efe27a;pointer-events:none}
+#interact{position:fixed;right:0;bottom:0;width:145px;height:145px;border-radius:100% 0 0 0;border:1px solid #dce6cf66;background:#c2d4c52b;touch-action:none;display:flex;align-items:center;justify-content:center;padding:28px 0 0 28px;backdrop-filter:blur(3px)}#interact svg{width:46px;height:46px;opacity:.9}#interact:active{background:#d6ed915e}
+#prompt{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#142a29b8;padding:6px 10px;border-radius:4px;max-width:calc(100vw - 310px);text-align:center;font-size:12px;pointer-events:none}
+#menuButton{position:fixed;right:18px;top:155px;background:#172e2bb8;border:1px solid #bfccab66;border-radius:50%;width:32px;height:32px}#parkMenu{position:fixed;right:55px;top:140px;z-index:20;background:#152826f5;padding:12px;border:1px solid #8b926c;border-radius:6px;display:grid;gap:8px}#parkMenu[hidden]{display:none}#parkMenu button,#parkMenu a{background:#29413b;border:1px solid #8b926c;padding:8px;text-decoration:none;text-align:center}
+#notice{position:fixed;inset:0;display:grid;place-items:center;background:#18282ce8;text-align:center;padding:25px;z-index:10}#notice[hidden]{display:none}
+@media(max-width:600px){#radar{width:84px;height:84px}#statusBar{padding:6px;max-width:70vw}#hud{font-size:10px}#teamStatus{gap:3px}#teamStatus .teamMember{width:48px}#teamStatus .teamPortrait{width:34px;height:34px}#kit{width:64px;height:64px;right:14px}#joystick{width:105px;height:105px}#nub{left:30.5px;top:30.5px}#interact{width:120px;height:120px}#prompt{max-width:calc(100vw - 245px);bottom:12px;font-size:10px}}
+</style></head><body>
+<canvas id="park" aria-label="可操作的废弃游乐场"></canvas><div id="labels"></div><canvas id="radar" aria-label="地图雷达"></canvas>
+<section id="statusBar" style="background:none;border:0;padding:0"><div id="teamStatus" aria-label="求生者状态"></div></section>
+<button id="kit" aria-label="按住拖拽选择方向，松开闪现，无冷却"><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M28 5 12 27h12l-4 16 17-24H25z"/></svg><small>闪现</small></button>
+<div id="joystick" role="group" aria-label="移动摇杆"><i id="nub"></i></div>
+<button id="interact" aria-label="交互，按住持续操作"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 38V22c0-5 7-5 7 0v12-22c0-5 7-5 7 0v21-17c0-5 7-5 7 0v18-12c0-5 7-5 7 0v17c0 12-5 19-16 19-7 0-11-4-15-10l-7-11c-3-5 2-9 6-5l4 6"/></svg></button>
+<div id="notice">正在加载游乐场…</div><script type="module" src="park-game.js"></script></body></html>

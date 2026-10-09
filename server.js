@@ -16,6 +16,14 @@ files.add('terror-shock.js');
 files.add('room-flow.js');
 files.add('map-editor.js');
 files.add('map-editor.html');
+files.add('park-preview.html');
+files.add('amusement-park.js');
+files.add('park-game.html');
+files.add('park-game.js');
+files.add('park-terrain.js');
+files.add('park-train.js');
+files.add('scream-house.js');
+files.add('wood-house.js');
 
 // Minimal standalone LAN WebSocket frame encoder and decoder (RFC 6455)
 // No third-party npm packages required so anyone on local Wi-Fi can play immediately.

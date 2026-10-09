@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>废弃游乐场 · 风格试验台</title>
+<style>
+:root{--ink:#302d27;--paper:#f0eadf;--accent:#ac5939}*{box-sizing:border-box}body{margin:0;color:var(--ink);background:radial-gradient(ellipse at top,#faf6ee,var(--paper));font-family:Georgia,'Songti SC',serif}header{padding:26px 5vw 14px}header small{letter-spacing:.2em;color:var(--accent)}h1{font-size:clamp(25px,4vw,42px);margin:10px 0}p{line-height:1.7;margin:5px 0;color:#746b60}nav{display:flex;flex-wrap:wrap;gap:8px;padding:12px 5vw}button,a{font:inherit}button{padding:10px 16px;background:#fff8;border:1px solid #bcb2a2;border-radius:3px;cursor:pointer;color:inherit}button[aria-pressed=true]{background:#302d27;color:#fff;border-color:#302d27}main{position:relative;margin:0 5vw;border:1px solid #bcb2a2;overflow:hidden;border-radius:5px}canvas{width:100%;height:58vh;min-height:320px;display:block;touch-action:none}.controls{display:flex;flex-wrap:wrap;gap:10px;padding:14px 5vw;align-items:center}#desc{padding:0 5vw 20px}a{color:var(--accent)}#error{position:absolute;inset:0;display:grid;place-items:center;background:#f0eadf}#error[hidden]{display:none}
+</style>
+</head>
+<body>
+<header><small>FOGBOUND / ART DIRECTION STUDY 01</small><h1>废弃游乐场 · 五种风格</h1><p>同一组场景、不同配色与绘制方式。先选气质，再扩展整张地图。</p></header>
+<nav id="styles" aria-label="风格选择"></nav>
+<main><canvas id="scene" aria-label="2.5D 游乐场风格预览"></canvas><div id="error" hidden>当前浏览器无法使用 Canvas 绘图。</div></main>
+<div class="controls"><button id="motion">停止旋转木马</button><button id="zoomOut">缩小 −</button><button id="zoomIn">放大 ＋</button><span>拖动画面平移 · 点击木马也可启动/停止</span><a href="index.html">返回游戏</a></div>
+<p id="desc"></p>
+<script>
+const themes=[
+ {name:'01 像素废土',sky:'#283e46',ground:'#576b50',path:'#8b9275',wood:'#784d3b',roof:'#ad6350',gold:'#d4b46d',leaf:'#344f3b',pixel:true,desc:'像素废土：低分辨率块面、有限色板，残破却不血腥。适合轻量 2.5D 对局。'},
+ {name:'02 低多边形玩具',sky:'#a8c9bf',ground:'#8ba883',path:'#dac3a1',wood:'#bf8970',roof:'#d77461',gold:'#f2d38b',leaf:'#527b63',desc:'低多边形玩具：清晰几何轮廓、柔和暖色，木马和角色都像桌面微缩模型。'},
+ {name:'03 写实旧园',sky:'#717b80',ground:'#666b56',path:'#a2987e',wood:'#675343',roof:'#824c44',gold:'#b79f72',leaf:'#414d3d',texture:true,desc:'写实旧园：旧漆、锈斑、木纹和阴沉天光。这里是 Canvas 材质示意，不是最终写实资产。'},
+ {name:'04 水彩童话',sky:'#ddd2d8',ground:'#c3c9ab',path:'#e4d5bb',wood:'#b79383',roof:'#ba8895',gold:'#d9c08b',leaf:'#8ba792',water:true,desc:'水彩童话：粉灰天空、褪色玫瑰红、纸感描边，废弃乐园带着温柔的故事感。'},
+ {name:'05 暗夜霓虹',sky:'#141e32',ground:'#253341',path:'#3e4759',wood:'#49506d',roof:'#6d4775',gold:'#53e5da',leaf:'#233f47',neon:true,desc:'暗夜霓虹：冷蓝夜色与青绿灯带，设备仍有残存电力；轮廓对比鲜明，偏悬疑科幻。'}
+];
+let chosen=0,running=true,angle=0,last=0,zoom=1,pan={x:0,y:0},drag=null,moved=false,hit={x:0,y:0};
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');
+if(!ctx)document.querySelector('#error').hidden=false;
+const nav=document.querySelector('#styles');
+themes.forEach((t,i)=>{const b=document.createElement('button');b.textContent=t.name;b.onclick=()=>{chosen=i;update();};nav.append(b);});
+function update(){[...nav.children].forEach((b,i)=>b.setAttribute('aria-pressed',i===chosen));document.querySelector('#desc').textContent=themes[chosen].desc;}
+update();
+function project(x,y,z=0){return {x:(x-y)*.866,y:(x+y)*.5-z};}
+function poly(points,color,outline=false){ctx.beginPath();points.forEach((p,i)=>{const q=project(...p);i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y);});ctx.closePath();ctx.fillStyle=color;ctx.fill();if(outline){ctx.strokeStyle='#3d35473b';ctx.lineWidth=.8;ctx.stroke();}}
+function box(x,y,w,d,h,color){const t=themes[chosen];poly([[x,y,0],[x+w,y,0],[x+w,y,h],[x,y,h]],color,t.water);poly([[x+w,y,0],[x+w,y+d,0],[x+w,y+d,h],[x+w,y,h]],t.wood,t.water);poly([[x,y,h],[x+w,y,h],[x+w,y+d,h],[x,y+d,h]],color,t.water);}
+function line(a,b,color,width=2){const p=project(...a),q=project(...b);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
+function ellipse(x,y,z,r,color){const q=project(x,y,z);ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(q.x,q.y,r,r*.5,0,0,Math.PI*2);ctx.fill();}
+function tree(x,y){const t=themes[chosen];box(x,y,4,4,34,t.wood);for(let j=0;j<3;j++)poly([[x-19+j*4,y,27+j*14],[x,y+19-j*4,27+j*14],[x+19-j*4,y,27+j*14],[x,y,68+j*6]],t.leaf,t.water);}
+function horse(x,y,z,phase){const t=themes[chosen],q=project(x,y,z);ctx.save();ctx.translate(q.x,q.y);ctx.scale(Math.cos(phase)>0?1:-1,1);ctx.fillStyle=t.gold;ctx.beginPath();ctx.ellipse(0,0,11,5,0,0,7);ctx.fill();ctx.fillRect(6,-11,4,12);ctx.fillRect(7,-13,9,5);ctx.fillRect(-8,3,3,11);ctx.fillRect(5,3,3,11);ctx.fillStyle=t.roof;ctx.fillRect(-3,-5,7,5);ctx.restore();}
+function carousel(){const t=themes[chosen];ellipse(0,0,0,57,'#0003');ellipse(0,0,4,51,t.wood);ellipse(0,0,8,49,t.gold);box(-3,-3,6,6,78,t.wood);
+ const horses=Array.from({length:8},(_,i)=>{const a=angle+i*Math.PI/4;return {a,x:Math.cos(a)*38,y:Math.sin(a)*38};}).sort((a,b)=>a.x+a.y-b.x-b.y);
+ for(const h of horses){line([h.x,h.y,9],[h.x,h.y,64],t.gold,2);horse(h.x,h.y,30+Math.sin(angle*2+h.a)*4,h.a);}
+ for(let i=0;i<12;i++){const a=i*Math.PI/6,b=(i+1)*Math.PI/6;poly([[0,0,96],[Math.cos(a)*58,Math.sin(a)*58,66],[Math.cos(b)*58,Math.sin(b)*58,66]],i%2?t.roof:t.gold,t.water);}
+ ellipse(0,0,66,58,t.roof); // rim drawn separately, restore roof silhouette above it
+ for(let i=0;i<12;i++){const a=i*Math.PI/6,b=(i+1)*Math.PI/6;poly([[0,0,96],[Math.cos(a)*58,Math.sin(a)*58,66],[Math.cos(b)*58,Math.sin(b)*58,66]],i%2?t.roof:t.gold,t.water);}
+ for(let i=0;i<18;i++){const a=i*Math.PI/9,q=project(Math.cos(a)*57,Math.sin(a)*57,65);ctx.fillStyle=t.gold;ctx.beginPath();ctx.arc(q.x,q.y,2,0,7);ctx.fill();}
+ line([0,0,96],[0,0,112],t.gold);poly([[0,0,112],[12,0,107],[0,0,102]],t.roof);
+}
+function draw(now){requestAnimationFrame(draw);if(!ctx)return;const dt=Math.min(.05,(now-last)/1000||0);last=now;if(running)angle+=dt*.6;
+ const w=canvas.clientWidth,h=canvas.clientHeight,dpr=Math.min(devicePixelRatio||1,2),t=themes[chosen];
+ const pw=t.pixel?Math.max(1,Math.floor(w/3)):Math.round(w*dpr),ph=t.pixel?Math.max(1,Math.floor(h/3)):Math.round(h*dpr);
+ if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;}canvas.style.imageRendering=t.pixel?'pixelated':'auto';
+ ctx.setTransform(pw/w,0,0,ph/h,0,0);ctx.fillStyle=t.sky;ctx.fillRect(0,0,w,h);const s=Math.min(w/570,h/360)*zoom;hit={x:w/2+pan.x,y:h*.6+pan.y};ctx.translate(hit.x,hit.y);ctx.scale(s,s);
+ poly([[-150,-140,0],[150,-140,0],[150,140,0],[-150,140,0]],t.ground);
+ poly([[-135,65,.2],[135,65,.2],[135,93,.2],[-135,93,.2]],t.path);
+ poly([[65,-130,.2],[91,-130,.2],[91,130,.2],[65,130,.2]],t.path);
+ for(let i=0;i<12;i++){box(-145+i*24,-138,3,4,19,t.wood);line([-145+i*24,-138,13],[-121+i*24,-138,13],t.wood,2);}
+ tree(-120,-70);tree(110,-110);tree(-130,30);
+ box(-94,-90,32,26,38,t.wood);poly([[-98,-94,38],[-58,-94,38],[-58,-59,48],[-98,-59,48]],t.roof);line([-94,-61,27],[-62,-61,27],t.gold,6);
+ carousel();tree(122,50);box(90,106,24,10,7,t.wood);box(-96,95,18,14,12,t.gold);
+ if(t.texture||t.water){ctx.globalAlpha=t.water?.12:.22;for(let i=0;i<240;i++){const x=(i*73)%290-145,y=(i*47)%280-140;line([x,y,.5],[x+2,y+1,.5],i%2?t.wood:t.path,.7);}ctx.globalAlpha=1;}
+ if(t.neon){ctx.shadowColor=t.gold;ctx.shadowBlur=9;line([-135,64,1],[135,64,1],t.gold,2);ctx.shadowBlur=0;}
+}
+document.querySelector('#motion').onclick=()=>{running=!running;document.querySelector('#motion').textContent=running?'停止旋转木马':'启动旋转木马';};
+document.querySelector('#zoomIn').onclick=()=>zoom=Math.min(2,zoom*1.15);document.querySelector('#zoomOut').onclick=()=>zoom=Math.max(.5,zoom/1.15);
+canvas.onpointerdown=e=>{canvas.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY,px:pan.x,py:pan.y};moved=false;};
+canvas.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)>5)moved=true;pan={x:drag.px+dx,y:drag.py+dy};};
+canvas.onpointerup=e=>{if(!moved){const r=canvas.getBoundingClientRect();if(Math.hypot(e.clientX-r.left-hit.x,e.clientY-r.top-hit.y)<100*zoom)document.querySelector('#motion').click();}drag=null;};canvas.onpointercancel=()=>drag=null;
+requestAnimationFrame(draw);
+</script>
+</body></html>
